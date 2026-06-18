@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ReelForge AI — Frontend
 
-## Getting Started
+Frontend-only Next.js app for **ReelForge AI**, a platform that turns a script
+plus reference images into a short vertical video (9:16) with AI-generated
+scenes, voiceover, and captions.
 
-First, run the development server:
+> This repo currently ships the **UI shell** — pages, navigation, mock data,
+> static previews. Backend logic (AI pipeline, render queue, auth) will be
+> wired up later following the plan in `AI-Reel-Studio-Local.pdf`.
+
+## Stack
+
+- **Next.js 16** (App Router, Turbopack)
+- **TypeScript** strict
+- **Tailwind CSS v4**
+- **lucide-react** icons
+- No backend, no auth, no database — pure frontend
+
+## Pages
+
+| Route | What's there |
+|---|---|
+| `/` | Dashboard — welcome banner, 5-step process card, Recent Videos table |
+| `/create` | Create Video — script + image upload, voice picker, live preview |
+| `/projects` | Projects list with search, filter, status, pagination |
+| `/assets` | Library of uploaded + generated assets (images, videos, audio, scripts) |
+| `/voice-library` | Voice catalog with filters, preview waveforms, "Select" CTA |
+| `/settings` | Placeholder rows (Profile, Billing, Notifications, …) |
+
+## Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open <http://localhost:3000>.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Production build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## Layout
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── app/
+│   ├── (app)/                # route group with sidebar + topbar layout
+│   │   ├── layout.tsx
+│   │   ├── page.tsx          # Dashboard
+│   │   ├── create/page.tsx
+│   │   ├── projects/page.tsx
+│   │   ├── assets/page.tsx
+│   │   ├── voice-library/page.tsx
+│   │   └── settings/page.tsx
+│   ├── layout.tsx            # root html / body
+│   └── globals.css           # Tailwind v4 theme tokens
+├── components/
+│   ├── layout/               # Sidebar, Topbar, Logo
+│   ├── create/Stepper.tsx
+│   └── ui/                   # StatusBadge, Thumb, Waveform
+└── lib/
+    ├── cn.ts                 # clsx + tailwind-merge helper
+    └── data.ts               # static dummy data
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Next steps (when backend lands)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The implementation roadmap lives in **`AI-Reel-Studio-Local.pdf`**:
 
-## Deploy on Vercel
+1. Add SQLite (better-sqlite3) and a `projects`/`scenes` schema
+2. Add API routes: `/api/plan` (Claude), `/api/generate` (FLUX + TTS), `/api/render` (Remotion)
+3. Wire Remotion `<Player/>` into `/create` for the live preview
+4. Optional: add Auth (NextAuth or Supabase Auth) once multi-user is needed
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For now, all data is hard-coded in `src/lib/data.ts` — easy to swap with real API calls later.
