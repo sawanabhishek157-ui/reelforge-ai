@@ -1,0 +1,35 @@
+# Fly.io config for ReelForge AI.
+# Run `fly launch --no-deploy` once to claim a unique app name, then `fly deploy`.
+
+app = "reelforge-ai"
+primary_region = "bom"   # Mumbai — change with `fly regions list`
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  DB_PATH = "/data/reelforge.db"
+  REMOTION_CHROMIUM_EXECUTABLE_PATH = "/usr/bin/chromium"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0   # cold-start when idle; saves money
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 50
+    soft_limit = 25
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"             # 1 GB lets Chromium render without OOMing
+
+[[mounts]]
+  source = "reelforge_data"
+  destination = "/data"
+  initial_size = "3gb"

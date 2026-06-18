@@ -8,12 +8,23 @@
     "start": "next start"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2",
+    "@fal-ai/serverless-client": "^0.15.0",
+    "@remotion/bundler": "^4.0.479",
+    "@remotion/cli": "^4.0.479",
+    "@remotion/player": "^4.0.479",
+    "@remotion/renderer": "^4.0.479",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.11.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",
     "next": "16.2.9",
+    "openai": "^6.44.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "tailwind-merge": "^3.6.0"
+    "remotion": "^4.0.479",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

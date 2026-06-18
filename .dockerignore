@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.github
+.vscode
+data
+public/projects
+*.log
+.env
+.env.*
+.DS_Store
+DEPLOY.md
+README.md
+Dockerfile
+.dockerignore

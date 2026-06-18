@@ -10,9 +10,33 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { RECENT_VIDEOS, formatDuration } from "@/lib/data";
+import { db } from "@/lib/db";
+import { formatDuration, type ProjectStatus } from "@/lib/data";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Thumb } from "@/components/ui/Thumb";
+
+export const dynamic = "force-dynamic";
+
+type Row = {
+  id: string;
+  title: string;
+  durationSec: number;
+  status: string;
+  outputPath: string | null;
+  createdAt: string;
+};
+
+function mapStatus(s: string): ProjectStatus {
+  if (s === "done") return "completed";
+  if (s === "failed") return "failed";
+  return "processing";
+}
+
+function hueFromId(id: string) {
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return h;
+}
 
 const STEPS = [
   { num: 1, icon: FileText, title: "Upload Script", text: "Upload or paste your script" },
@@ -23,6 +47,13 @@ const STEPS = [
 ] as const;
 
 export default function DashboardPage() {
+  const recent = db
+    .prepare(
+      `SELECT id, title, duration_sec as durationSec, status, output_path as outputPath, created_at as createdAt
+       FROM projects ORDER BY created_at DESC LIMIT 5`,
+    )
+    .all() as Row[];
+
   return (
     <div className="space-y-6">
       <section className="relative overflow-hidden rounded-3xl border border-[#e8e8f0] bg-white p-8 lg:p-10">
@@ -91,54 +122,66 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        <div className="mt-5 overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="text-left text-xs font-medium tracking-wide text-slate-500 uppercase">
-                <th className="py-3 pr-4">Video Name</th>
-                <th className="py-3 pr-4">Created At</th>
-                <th className="py-3 pr-4">Duration</th>
-                <th className="py-3 pr-4">Status</th>
-                <th className="py-3 pr-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#e8e8f0]">
-              {RECENT_VIDEOS.map((v) => (
-                <tr key={v.id} className="text-sm">
-                  <td className="py-3 pr-4">
-                    <div className="flex items-center gap-3">
-                      <Thumb hue={v.thumbHue} />
-                      <span className="font-medium text-slate-800">{v.name}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 pr-4 text-slate-500">{v.createdAt}</td>
-                  <td className="py-3 pr-4 text-slate-500">{formatDuration(v.durationSec)}</td>
-                  <td className="py-3 pr-4">
-                    <StatusBadge status={v.status} />
-                  </td>
-                  <td className="py-3 pr-4">
-                    <div className="flex items-center justify-end gap-2">
-                      {v.status === "completed" && (
+        {recent.length === 0 ? (
+          <p className="mt-5 text-sm text-slate-500">
+            No videos yet —{" "}
+            <Link href="/create" className="font-medium text-violet-600 hover:text-violet-700">
+              create your first one
+            </Link>
+            .
+          </p>
+        ) : (
+          <div className="mt-5 overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr className="text-left text-xs font-medium tracking-wide text-slate-500 uppercase">
+                  <th className="py-3 pr-4">Video Name</th>
+                  <th className="py-3 pr-4">Created At</th>
+                  <th className="py-3 pr-4">Duration</th>
+                  <th className="py-3 pr-4">Status</th>
+                  <th className="py-3 pr-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#e8e8f0]">
+                {recent.map((v) => (
+                  <tr key={v.id} className="text-sm">
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-3">
+                        <Thumb hue={hueFromId(v.id)} />
+                        <span className="font-medium text-slate-800">{v.title}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 pr-4 text-slate-500">{v.createdAt}</td>
+                    <td className="py-3 pr-4 text-slate-500">{formatDuration(v.durationSec)}</td>
+                    <td className="py-3 pr-4">
+                      <StatusBadge status={mapStatus(v.status)} />
+                    </td>
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center justify-end gap-2">
+                        {v.outputPath && (
+                          <a
+                            href={"/" + v.outputPath}
+                            download
+                            aria-label="Download"
+                            className="flex size-8 items-center justify-center rounded-lg border border-[#e8e8f0] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                          >
+                            <Download className="size-4" />
+                          </a>
+                        )}
                         <button
-                          aria-label="Download"
+                          aria-label="More"
                           className="flex size-8 items-center justify-center rounded-lg border border-[#e8e8f0] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
                         >
-                          <Download className="size-4" />
+                          <MoreHorizontal className="size-4" />
                         </button>
-                      )}
-                      <button
-                        aria-label="More"
-                        className="flex size-8 items-center justify-center rounded-lg border border-[#e8e8f0] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );

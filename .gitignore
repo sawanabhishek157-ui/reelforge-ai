@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ReelForge local data
+/data
+/data.db*
+/public/projects/
+/out/
+/.env.local
