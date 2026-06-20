@@ -70,10 +70,13 @@ function open() {
     );
   `);
 
-  // Idempotent migration: add `aspect` column to existing DBs
+  // Idempotent migrations
   const cols = conn.prepare(`PRAGMA table_info(projects)`).all() as { name: string }[];
   if (!cols.some((c) => c.name === "aspect")) {
     conn.exec(`ALTER TABLE projects ADD COLUMN aspect TEXT DEFAULT '9:16'`);
+  }
+  if (!cols.some((c) => c.name === "speech_plan_json")) {
+    conn.exec(`ALTER TABLE projects ADD COLUMN speech_plan_json TEXT`);
   }
 
   return conn;

@@ -81,6 +81,20 @@ export default function CreateV0Page() {
   const [voiceoverUrl, setVoiceoverUrl] = useState<string | null>(null);
   const [usedVoiceId, setUsedVoiceId] = useState<string | null>(null);
   const [motionPrompts, setMotionPrompts] = useState<string[]>([]);
+  const [voiceFeedback, setVoiceFeedback] = useState("");
+  type PlanSentence = {
+    text: string;
+    emotion: string;
+    energy: string;
+    speed: string;
+    pauseBeforeMs: number;
+    pauseAfterMs: number;
+    emphasis: string[];
+  };
+  const [speechPlan, setSpeechPlan] = useState<{
+    overallTone: string;
+    sentences: PlanSentence[];
+  } | null>(null);
 
   const usedVoice = useMemo(
     () => VOICE_OPTIONS.find((v) => v.id === usedVoiceId),
@@ -215,15 +229,16 @@ export default function CreateV0Page() {
     setBusy(null);
     setMoodId("none");
     setMixDone(false);
+    setSpeechPlan(null);
+    setVoiceFeedback("");
   }
 
-  // ───────────────────────── Step 2 — Generate Voice (no images yet)
-  async function generateVoice() {
+  // ───────────────────────── Step 2 — Generate Voice (with optional feedback)
+  async function generateVoice(opts?: { feedback?: string; resetPlan?: boolean }) {
     setError(null);
     if (!scriptOk) return setError("Script must be 20–1200 characters.");
 
     try {
-      // Create the project the first time, then just regenerate the voice afterwards
       let pid = projectId;
       if (!pid) {
         setBusy("Creating project…");
@@ -232,7 +247,6 @@ export default function CreateV0Page() {
         fd.set("voiceId", voiceId);
         fd.set("aspect", "9:16");
         fd.set("title", script.slice(0, 60));
-        // NO images — we'll add them in step 4
         const project = (await ensureOk(
           await fetch("/api/projects", { method: "POST", body: fd }),
         )) as { id: string };
@@ -240,17 +254,34 @@ export default function CreateV0Page() {
         setProjectId(pid);
       }
 
-      setBusy("Generating voiceover…");
+      setBusy(
+        opts?.feedback
+          ? `Revising plan: "${opts.feedback}"…`
+          : speechPlan
+            ? "Re-rendering with same plan…"
+            : "Writing speech performance plan…",
+      );
       const data = (await ensureOk(
         await fetch(`/api/projects/${pid}/regenerate-voice`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ voiceId }),
+          body: JSON.stringify({
+            voiceId,
+            feedback: opts?.feedback,
+            resetPlan: opts?.resetPlan,
+          }),
         }),
-      )) as { voiceoverUrl: string };
-      // Cache-bust the audio src so the browser actually reloads after regenerate
+      )) as {
+        voiceoverUrl: string;
+        speechPlan?: {
+          overallTone: string;
+          sentences: PlanSentence[];
+        };
+      };
       setVoiceoverUrl(`${data.voiceoverUrl}?t=${Date.now()}`);
       setUsedVoiceId(voiceId);
+      if (data.speechPlan) setSpeechPlan(data.speechPlan);
+      setVoiceFeedback("");
       setBusy(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Voice failed");
@@ -513,48 +544,57 @@ export default function CreateV0Page() {
 
         <button
           type="button"
-          onClick={generateVoice}
+          onClick={() => generateVoice()}
           disabled={!!busy || !scriptOk}
           className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy ? (
             <>
               <Loader2 className="size-4 animate-spin" />
-              {voiceoverUrl ? "Regenerating voice…" : "Generating voice…"}
+              {busy}
             </>
           ) : (
             <>
               <Mic className="size-4" />
-              {voiceoverUrl ? "Regenerate voiceover" : "Generate voiceover"}
+              {voiceoverUrl ? "Regenerate voiceover" : "Generate voiceover with performance plan"}
               <ArrowRight className="size-4" />
             </>
           )}
         </button>
 
         {voiceoverUrl && (
-          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-[0.7rem] font-semibold tracking-wide text-emerald-700 uppercase">
-                Audio preview
+          <>
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[0.7rem] font-semibold tracking-wide text-emerald-700 uppercase">
+                  Audio preview
+                </div>
+                {usedVoice && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[0.7rem] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                    Currently: {usedVoice.name}
+                  </span>
+                )}
               </div>
-              {usedVoice && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[0.7rem] font-semibold text-emerald-800 ring-1 ring-emerald-200">
-                  <span className="size-1.5 rounded-full bg-emerald-500" />
-                  Currently: {usedVoice.name}
-                </span>
-              )}
+              <audio
+                key={voiceoverUrl}
+                src={voiceoverUrl}
+                controls
+                className="mt-2 w-full"
+              />
             </div>
-            <audio
-              key={voiceoverUrl}
-              src={voiceoverUrl}
-              controls
-              className="mt-2 w-full"
-            />
-            <p className="mt-2 text-xs text-emerald-900/70">
-              Pick a different voice above and click{" "}
-              <strong>Regenerate voiceover</strong> to try another.
-            </p>
-          </div>
+
+            {speechPlan && (
+              <PerformancePlanPanel
+                plan={speechPlan}
+                feedback={voiceFeedback}
+                setFeedback={setVoiceFeedback}
+                onApply={(fb) => generateVoice({ feedback: fb })}
+                onReset={() => generateVoice({ resetPlan: true })}
+                busy={!!busy}
+              />
+            )}
+          </>
         )}
       </StepCard>
 
@@ -1059,6 +1099,138 @@ function Stat({ label, value, warn, accent }: { label: string; value: string; wa
         {value}
       </div>
     </div>
+  );
+}
+
+const QUICK_FEEDBACK = [
+  "More emotional",
+  "More dramatic",
+  "More mysterious",
+  "More energetic",
+  "Documentary style",
+  "Slower pacing",
+  "Faster pacing",
+  "More intimate",
+  "More confident",
+  "Add longer pauses",
+] as const;
+
+function PerformancePlanPanel({
+  plan,
+  feedback,
+  setFeedback,
+  onApply,
+  onReset,
+  busy,
+}: {
+  plan: { overallTone: string; sentences: { text: string; emotion: string; energy: string; speed: string; pauseBeforeMs: number; pauseAfterMs: number; emphasis: string[] }[] };
+  feedback: string;
+  setFeedback: (s: string) => void;
+  onApply: (feedback: string) => void;
+  onReset: () => void;
+  busy: boolean;
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-[0.7rem] font-semibold tracking-wide text-violet-700 uppercase">
+            Speech Performance Plan
+          </div>
+          <p className="mt-0.5 text-xs text-slate-600">
+            <strong>Overall tone:</strong> {plan.overallTone}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onReset}
+          disabled={busy}
+          className="rounded-lg border border-violet-300 bg-white px-2.5 py-1 text-[0.7rem] font-semibold text-violet-700 transition-colors hover:bg-violet-100 disabled:opacity-50"
+        >
+          Reset plan
+        </button>
+      </div>
+
+      <ul className="mt-3 space-y-1.5">
+        {plan.sentences.map((s, i) => (
+          <li
+            key={i}
+            className="rounded-xl border border-[#e8e8f0] bg-white p-2.5 text-xs"
+          >
+            <div className="mb-1 flex flex-wrap items-center gap-1">
+              <Pill tone="violet">{s.emotion}</Pill>
+              <Pill tone="slate">{s.energy} energy</Pill>
+              <Pill tone="slate">{s.speed}</Pill>
+              {s.pauseBeforeMs >= 200 && (
+                <Pill tone="amber">↤ {s.pauseBeforeMs}ms</Pill>
+              )}
+              {s.pauseAfterMs >= 200 && (
+                <Pill tone="amber">↦ {s.pauseAfterMs}ms</Pill>
+              )}
+              {s.emphasis.length > 0 && (
+                <Pill tone="emerald">★ {s.emphasis.join(", ")}</Pill>
+              )}
+            </div>
+            <p className="text-slate-700">{s.text}</p>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-4">
+        <label className="text-[0.7rem] font-semibold tracking-wide text-violet-700 uppercase">
+          Direct the performance
+        </label>
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          placeholder='Eg. "More mysterious in the hook, add a 500ms pause before the CTA"'
+          className="mt-1 h-20 w-full resize-none rounded-xl border border-[#e8e8f0] bg-white p-3 text-sm leading-relaxed text-slate-700 placeholder-slate-400 outline-none focus:ring-2 focus:ring-violet-200/60"
+        />
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {QUICK_FEEDBACK.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => onApply(q)}
+              disabled={busy}
+              className="rounded-full border border-violet-200 bg-white px-2.5 py-1 text-[0.7rem] font-medium text-violet-700 transition-colors hover:bg-violet-100 disabled:opacity-50"
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => feedback.trim() && onApply(feedback.trim())}
+          disabled={busy || !feedback.trim()}
+          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-500/30 transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> Revising…
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-4" /> Apply feedback &amp; regenerate
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Pill({ children, tone }: { children: React.ReactNode; tone: "violet" | "slate" | "amber" | "emerald" }) {
+  const map = {
+    violet: "bg-violet-100 text-violet-700",
+    slate: "bg-slate-100 text-slate-600",
+    amber: "bg-amber-100 text-amber-700",
+    emerald: "bg-emerald-100 text-emerald-700",
+  } as const;
+  return (
+    <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[0.6rem] font-semibold ${map[tone]}`}>
+      {children}
+    </span>
   );
 }
 

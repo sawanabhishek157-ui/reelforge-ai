@@ -9,6 +9,11 @@ import {
 } from "@/lib/tts";
 import { MAX_DURATION_SEC } from "@/lib/duration";
 import {
+  generateSpeechPlan,
+  revisePlanWithFeedback,
+  type SpeechPlan,
+} from "@/lib/speech-plan";
+import {
   ensureDir,
   projectVoicePath,
   toPublicUrl,
@@ -29,7 +34,7 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  let body: { voiceId?: string } = {};
+  let body: { voiceId?: string; feedback?: string; resetPlan?: boolean } = {};
   try {
     body = await req.json();
   } catch {
@@ -38,10 +43,16 @@ export async function POST(
 
   const project = db
     .prepare(
-      `SELECT id, script, voice_id as voiceId, plan_json as planJson FROM projects WHERE id = ?`,
+      `SELECT id, script, voice_id as voiceId, plan_json as planJson, speech_plan_json as speechPlanJson FROM projects WHERE id = ?`,
     )
     .get(id) as
-    | { id: string; script: string; voiceId: string; planJson: string | null }
+    | {
+        id: string;
+        script: string;
+        voiceId: string;
+        planJson: string | null;
+        speechPlanJson: string | null;
+      }
     | undefined;
 
   if (!project) {
@@ -51,9 +62,25 @@ export async function POST(
   const newVoice = (body.voiceId ?? project.voiceId) as VoiceName;
 
   try {
+    // 1. Get/refresh the Speech Performance Plan
+    let speechPlan: SpeechPlan | null = null;
+    if (body.resetPlan || !project.speechPlanJson) {
+      speechPlan = await generateSpeechPlan(project.script);
+    } else if (body.feedback) {
+      const current = JSON.parse(project.speechPlanJson) as SpeechPlan;
+      speechPlan = await revisePlanWithFeedback(current, body.feedback);
+    } else {
+      speechPlan = JSON.parse(project.speechPlanJson) as SpeechPlan;
+    }
+    db.prepare(`UPDATE projects SET speech_plan_json = ? WHERE id = ?`).run(
+      JSON.stringify(speechPlan),
+      id,
+    );
+
+    // 2. Render TTS using the plan
     const voiceAbs = projectVoicePath(id);
     ensureDir(path.dirname(voiceAbs));
-    await generateVoiceover(project.script, voiceAbs, newVoice);
+    await generateVoiceover(project.script, voiceAbs, newVoice, speechPlan);
 
     const actualSec = await audioDurationSec(voiceAbs);
     if (actualSec > MAX_DURATION_SEC) {
@@ -94,6 +121,7 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
+      speechPlan,
       voiceoverUrl: toPublicUrl(voiceAbs),
       durationSec: actualSec,
     });

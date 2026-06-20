@@ -1,5 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
+
+import type { EdgeChunk, SpeechPlan } from "./speech-plan";
+import {
+  planToEdgeChunks,
+  planToElevenLabsScript,
+} from "./speech-plan";
 
 /**
  * Dual-provider TTS:
@@ -98,14 +105,20 @@ export async function generateVoiceover(
   text: string,
   outFilePath: string,
   voice: VoiceId = DEFAULT_VOICE_ID,
+  plan?: SpeechPlan | null,
 ) {
   const def =
     VOICES.find((v) => v.id === voice) ?? VOICES.find((v) => v.id === DEFAULT_VOICE_ID)!;
 
   if (def.provider === "edge") {
-    await edgeTts(text, outFilePath, def.id);
+    if (plan) {
+      await edgeTtsPlan(plan, outFilePath, def.id);
+    } else {
+      await edgeTts(text, outFilePath, def.id);
+    }
   } else {
-    await elevenLabsTts(text, outFilePath, def.id);
+    const scripted = plan ? planToElevenLabsScript(plan) : text;
+    await elevenLabsTts(scripted, outFilePath, def.id, plan ? "v3" : "multilingual");
   }
   return outFilePath;
 }
@@ -113,13 +126,43 @@ export async function generateVoiceover(
 // ──────────────────────────────────────────────────────────────────
 // ElevenLabs implementation
 // ──────────────────────────────────────────────────────────────────
-async function elevenLabsTts(text: string, outFilePath: string, voiceId: string) {
+async function elevenLabsTts(
+  text: string,
+  outFilePath: string,
+  voiceId: string,
+  mode: "v3" | "multilingual" = "multilingual",
+) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     throw new Error(
       "ELEVENLABS_API_KEY is not set. Add it to .env.local, or pick a Hindi/Edge TTS voice (no key needed).",
     );
   }
+
+  // v3 supports audio tags [excited], [whispers], [pause 300ms] etc.
+  // Use Creative stability so the model reacts strongly to tags.
+  const isV3 = mode === "v3";
+  const body = isV3
+    ? {
+        text,
+        model_id: "eleven_v3",
+        voice_settings: {
+          stability: 0.3, // Creative — required for expressive tags
+          similarity_boost: 0.75,
+          style: 0.5,
+          use_speaker_boost: true,
+        },
+      }
+    : {
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: {
+          stability: 0.45,
+          similarity_boost: 0.75,
+          style: 0.2,
+          use_speaker_boost: true,
+        },
+      };
 
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
@@ -128,16 +171,7 @@ async function elevenLabsTts(text: string, outFilePath: string, voiceId: string)
       "Content-Type": "application/json",
       Accept: "audio/mpeg",
     },
-    body: JSON.stringify({
-      text,
-      model_id: "eleven_multilingual_v2",
-      voice_settings: {
-        stability: 0.45,
-        similarity_boost: 0.75,
-        style: 0.2,
-        use_speaker_boost: true,
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -153,7 +187,112 @@ async function elevenLabsTts(text: string, outFilePath: string, voiceId: string)
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Microsoft Edge TTS implementation (free, no key)
+// Microsoft Edge TTS — per-sentence render driven by Speech Plan
+// Each sentence gets its own rate/pitch from the plan. Renders are
+// then concatenated with ffmpeg, with silent pads between for pauses.
+// ──────────────────────────────────────────────────────────────────
+async function edgeTtsPlan(
+  plan: SpeechPlan,
+  outFilePath: string,
+  voiceId: string,
+) {
+  const { MsEdgeTTS, OUTPUT_FORMAT } = await import("msedge-tts");
+  const chunks = planToEdgeChunks(plan);
+
+  const tmpDir = path.dirname(outFilePath);
+  fs.mkdirSync(tmpDir, { recursive: true });
+
+  const partFiles: string[] = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    const c: EdgeChunk = chunks[i];
+    const partPath = path.join(tmpDir, `.edge-part-${Date.now()}-${i}.mp3`);
+
+    const tts = new MsEdgeTTS();
+    await tts.setMetadata(voiceId, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+
+    await new Promise<void>((resolve, reject) => {
+      const result = tts.toStream(c.text, { rate: c.rate, pitch: c.pitch });
+      const stream = (result as unknown as { audioStream: NodeJS.ReadableStream })
+        .audioStream;
+      const out = fs.createWriteStream(partPath);
+      stream.on("data", (chunk: Buffer) => out.write(chunk));
+      stream.on("end", () => {
+        out.end();
+        resolve();
+      });
+      stream.on("error", reject);
+      out.on("error", reject);
+    });
+    partFiles.push(partPath);
+
+    // Silent pad for pauses between sentences
+    if (c.pauseAfterMs > 80) {
+      const padPath = path.join(tmpDir, `.edge-pad-${Date.now()}-${i}.mp3`);
+      await runFfmpeg([
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        `anullsrc=channel_layout=mono:sample_rate=24000`,
+        "-t",
+        (c.pauseAfterMs / 1000).toFixed(3),
+        "-c:a",
+        "libmp3lame",
+        "-b:a",
+        "48k",
+        padPath,
+      ]);
+      partFiles.push(padPath);
+    }
+  }
+
+  // Concat all parts via ffmpeg
+  const manifest = path.join(tmpDir, `.edge-list-${Date.now()}.txt`);
+  fs.writeFileSync(manifest, partFiles.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n") + "\n");
+  await runFfmpeg([
+    "-y",
+    "-f",
+    "concat",
+    "-safe",
+    "0",
+    "-i",
+    manifest,
+    "-c:a",
+    "libmp3lame",
+    "-b:a",
+    "128k",
+    outFilePath,
+  ]);
+
+  // Clean up part files + manifest
+  for (const p of partFiles) {
+    try {
+      fs.unlinkSync(p);
+    } catch {}
+  }
+  try {
+    fs.unlinkSync(manifest);
+  } catch {}
+}
+
+function runFfmpeg(args: string[]) {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn("ffmpeg", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (c) => {
+      stderr += c.toString();
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg exited ${code}\n${stderr.slice(-800)}`));
+    });
+  });
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Microsoft Edge TTS — plain (no plan)
 // ──────────────────────────────────────────────────────────────────
 async function edgeTts(text: string, outFilePath: string, voiceId: string) {
   // dynamic import keeps the dep tree clean
