@@ -49,3 +49,9 @@ next-env.d.ts
 
 # Veo job artefacts (downloaded MP4s, source uploads)
 /public/veo/
+
+# Voice sample cache (regenerated on demand)
+/public/voice-samples/
+
+# User-supplied music — README stays, MP3s don't
+/public/music/*.mp3

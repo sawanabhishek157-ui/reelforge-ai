@@ -13,10 +13,12 @@ import {
   Lock,
   Mic,
   Music,
+  Pause,
   Play,
   Rocket,
   Sparkles,
   Upload,
+  VolumeX,
   Wand2,
   X,
 } from "lucide-react";
@@ -33,12 +35,12 @@ import {
 } from "@/lib/duration";
 
 const VOICE_OPTIONS = [
-  { id: "hi-IN-SwaraNeural", label: "Swara — Hindi female (FREE)", style: "हिंदी · Warm" },
-  { id: "hi-IN-MadhurNeural", label: "Madhur — Hindi male (FREE)", style: "हिंदी · Friendly" },
-  { id: "en-IN-NeerjaNeural", label: "Neerja — Indian English f. (FREE)", style: "Clear" },
-  { id: "en-IN-PrabhatNeural", label: "Prabhat — Indian English m. (FREE)", style: "Confident" },
-  { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah — English female", style: "Soft (ElevenLabs)" },
-  { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel — English female", style: "Calm (ElevenLabs)" },
+  { id: "hi-IN-SwaraNeural", name: "Swara", label: "Swara — Hindi female (FREE)", style: "हिंदी · Warm" },
+  { id: "hi-IN-MadhurNeural", name: "Madhur", label: "Madhur — Hindi male (FREE)", style: "हिंदी · Friendly" },
+  { id: "en-IN-NeerjaNeural", name: "Neerja", label: "Neerja — Indian English f. (FREE)", style: "Clear" },
+  { id: "en-IN-PrabhatNeural", name: "Prabhat", label: "Prabhat — Indian English m. (FREE)", style: "Confident" },
+  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", label: "Sarah — English female", style: "Soft (ElevenLabs)" },
+  { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", label: "Rachel — English female", style: "Calm (ElevenLabs)" },
 ] as const;
 
 type Scene = {
@@ -77,10 +79,115 @@ export default function CreateV0Page() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [scenes, setScenes] = useState<Scene[] | null>(null);
   const [voiceoverUrl, setVoiceoverUrl] = useState<string | null>(null);
+  const [usedVoiceId, setUsedVoiceId] = useState<string | null>(null);
   const [motionPrompts, setMotionPrompts] = useState<string[]>([]);
+
+  const usedVoice = useMemo(
+    () => VOICE_OPTIONS.find((v) => v.id === usedVoiceId),
+    [usedVoiceId],
+  );
 
   // ───────────────────────────── Step 8: Uploaded clips
   const [clips, setClips] = useState<Clip[]>([]);
+
+  // ───────────────────────────── Step 3: Music
+  type MoodApi = {
+    id: string;
+    name: string;
+    emoji: string;
+    description: string;
+    url: string;
+    available: boolean;
+  };
+  const [moods, setMoods] = useState<MoodApi[]>([]);
+  const [moodId, setMoodId] = useState<string>("none");
+  const [musicVolume, setMusicVolume] = useState(0.18);
+  const [mixDone, setMixDone] = useState(false);
+
+  // Per-voice sample audio (lazy generated)
+  const sampleAudio = useRef<HTMLAudioElement | null>(null);
+  const [sampleVoice, setSampleVoice] = useState<string | null>(null);
+  const [sampleLoading, setSampleLoading] = useState<string | null>(null);
+
+  // Music preview
+  const musicAudio = useRef<HTMLAudioElement | null>(null);
+  const [playingMood, setPlayingMood] = useState<string | null>(null);
+
+  // Fetch music availability once
+  useEffect(() => {
+    fetch("/api/music")
+      .then((r) => r.json())
+      .then((d: { moods: MoodApi[] }) => setMoods(d.moods))
+      .catch(() => {});
+  }, []);
+
+  async function playVoiceSample(id: string) {
+    if (sampleAudio.current && !sampleAudio.current.paused) {
+      sampleAudio.current.pause();
+      sampleAudio.current = null;
+      if (sampleVoice === id) {
+        setSampleVoice(null);
+        return;
+      }
+    }
+    try {
+      setSampleLoading(id);
+      const r = await fetch(`/api/voice-sample?id=${encodeURIComponent(id)}`);
+      const d = (await r.json()) as { url?: string; error?: string };
+      if (!d.url) throw new Error(d.error ?? "sample failed");
+      const a = new Audio(d.url);
+      sampleAudio.current = a;
+      setSampleVoice(id);
+      a.onended = () => setSampleVoice(null);
+      await a.play();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "voice sample failed");
+    } finally {
+      setSampleLoading(null);
+    }
+  }
+
+  function playMoodPreview(m: MoodApi) {
+    if (musicAudio.current && !musicAudio.current.paused) {
+      musicAudio.current.pause();
+      musicAudio.current = null;
+      if (playingMood === m.id) {
+        setPlayingMood(null);
+        return;
+      }
+    }
+    if (!m.available || !m.url) return;
+    const a = new Audio(m.url);
+    musicAudio.current = a;
+    setPlayingMood(m.id);
+    a.onended = () => setPlayingMood(null);
+    a.play().catch(() => setPlayingMood(null));
+  }
+
+  async function mixAudio() {
+    if (!projectId) return;
+    if (moodId === "none") {
+      setMixDone(true);
+      return;
+    }
+    setError(null);
+    try {
+      setBusy("Mixing voice + music…");
+      const data = (await ensureOk(
+        await fetch(`/api/projects/${projectId}/mix-audio`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ moodId, musicVolume }),
+        }),
+      )) as { outputUrl: string };
+      setVoiceoverUrl(data.outputUrl);
+      setMixDone(true);
+      setBusy(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Mix failed");
+      setBusy(null);
+    }
+  }
 
   // ───────────────────────────── Step 9: Final output
   const [finalUrl, setFinalUrl] = useState<string | null>(null);
@@ -100,11 +207,14 @@ export default function CreateV0Page() {
     setProjectId(null);
     setScenes(null);
     setVoiceoverUrl(null);
+    setUsedVoiceId(null);
     setMotionPrompts([]);
     setClips([]);
     setFinalUrl(null);
     setError(null);
     setBusy(null);
+    setMoodId("none");
+    setMixDone(false);
   }
 
   // ───────────────────────── Step 2 — Generate Voice (no images yet)
@@ -138,7 +248,9 @@ export default function CreateV0Page() {
           body: JSON.stringify({ voiceId }),
         }),
       )) as { voiceoverUrl: string };
-      setVoiceoverUrl(data.voiceoverUrl);
+      // Cache-bust the audio src so the browser actually reloads after regenerate
+      setVoiceoverUrl(`${data.voiceoverUrl}?t=${Date.now()}`);
+      setUsedVoiceId(voiceId);
       setBusy(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Voice failed");
@@ -188,7 +300,8 @@ export default function CreateV0Page() {
       )) as GenResponse;
 
       setScenes(gen.scenes);
-      setVoiceoverUrl(gen.voiceoverUrl);
+      setVoiceoverUrl(`${gen.voiceoverUrl}?t=${Date.now()}`);
+      setUsedVoiceId(voiceId);
       setMotionPrompts(gen.scenes.map((s) => defaultMotion(s.caption)));
       setBusy(null);
     } catch (e: unknown) {
@@ -351,22 +464,51 @@ export default function CreateV0Page() {
         state={voiceoverUrl ? "done" : scriptOk ? "active" : "locked"}
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {VOICE_OPTIONS.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => setVoiceId(v.id)}
-              className={cn(
-                "rounded-2xl border p-3 text-left transition-colors",
-                voiceId === v.id
-                  ? "border-emerald-300 bg-emerald-50"
-                  : "border-[#e8e8f0] bg-white hover:bg-slate-50",
-              )}
-            >
-              <p className="text-sm font-semibold">{v.label}</p>
-              <p className="mt-0.5 text-[0.7rem] text-slate-500">{v.style}</p>
-            </button>
-          ))}
+          {VOICE_OPTIONS.map((v) => {
+            const isSelected = voiceId === v.id;
+            const isCurrent = usedVoiceId === v.id;
+            const isPlaying = sampleVoice === v.id;
+            const isLoading = sampleLoading === v.id;
+            return (
+              <div
+                key={v.id}
+                className={cn(
+                  "relative rounded-2xl border p-3 text-left transition-colors",
+                  isSelected
+                    ? "border-emerald-300 bg-emerald-50"
+                    : "border-[#e8e8f0] bg-white hover:bg-slate-50",
+                )}
+              >
+                {isCurrent && (
+                  <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[0.6rem] font-bold text-white">
+                    <span className="size-1.5 rounded-full bg-white" /> Current
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setVoiceId(v.id)}
+                  className="w-full text-left"
+                >
+                  <p className="pr-14 text-sm font-semibold">{v.label}</p>
+                  <p className="mt-0.5 text-[0.7rem] text-slate-500">{v.style}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => playVoiceSample(v.id)}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-2 py-1 text-[0.7rem] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                >
+                  {isLoading ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : isPlaying ? (
+                    <Pause className="size-3" />
+                  ) : (
+                    <Play className="size-3" />
+                  )}
+                  {isPlaying ? "Stop" : "Hear sample"}
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         <button
@@ -375,37 +517,158 @@ export default function CreateV0Page() {
           disabled={!!busy || !scriptOk}
           className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <Mic className="size-4" />
-          {voiceoverUrl ? "Regenerate voiceover" : "Generate voiceover"}
-          <ArrowRight className="size-4" />
+          {busy ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              {voiceoverUrl ? "Regenerating voice…" : "Generating voice…"}
+            </>
+          ) : (
+            <>
+              <Mic className="size-4" />
+              {voiceoverUrl ? "Regenerate voiceover" : "Generate voiceover"}
+              <ArrowRight className="size-4" />
+            </>
+          )}
         </button>
 
         {voiceoverUrl && (
-          <div className="mt-4 rounded-2xl border border-[#e8e8f0] bg-slate-50 p-4">
-            <div className="text-[0.7rem] font-semibold tracking-wide text-slate-500 uppercase">
-              Audio preview · Approve or regenerate
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-[0.7rem] font-semibold tracking-wide text-emerald-700 uppercase">
+                Audio preview
+              </div>
+              {usedVoice && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[0.7rem] font-semibold text-emerald-800 ring-1 ring-emerald-200">
+                  <span className="size-1.5 rounded-full bg-emerald-500" />
+                  Currently: {usedVoice.name}
+                </span>
+              )}
             </div>
-            <audio src={voiceoverUrl} controls className="mt-2 w-full" />
-            <p className="mt-2 text-xs text-slate-500">
-              Pick a different voice above and click <strong>Regenerate
-              voiceover</strong> if you want to try another.
+            <audio
+              key={voiceoverUrl}
+              src={voiceoverUrl}
+              controls
+              className="mt-2 w-full"
+            />
+            <p className="mt-2 text-xs text-emerald-900/70">
+              Pick a different voice above and click{" "}
+              <strong>Regenerate voiceover</strong> to try another.
             </p>
           </div>
         )}
       </StepCard>
 
-      {/* Step 3 — Music (placeholder for V0.1) */}
+      {/* Step 3 — Music */}
       <StepCard
         num={3}
         title="Background Music"
         icon={Music}
-        state="locked"
-        badge="Coming in V0.1"
+        state={mixDone ? "done" : voiceoverUrl ? "active" : "locked"}
       >
         <p className="text-sm text-slate-500">
-          Built-in royalty-free music library with preview and ducking under
-          the voiceover. Ships in V0.1.
+          Pick a mood, preview it, then mix it under the voice. Music is
+          auto-ducked so the words stay clear.
         </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {moods.map((m) => {
+            const isSelected = moodId === m.id;
+            const isPlaying = playingMood === m.id;
+            const disabled = !m.available;
+            return (
+              <div
+                key={m.id}
+                className={cn(
+                  "relative rounded-2xl border p-3 text-left transition-colors",
+                  disabled && "opacity-60",
+                  isSelected
+                    ? "border-emerald-300 bg-emerald-50"
+                    : "border-[#e8e8f0] bg-white hover:bg-slate-50",
+                )}
+              >
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setMoodId(m.id)}
+                  className="block w-full text-left disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-base leading-none">{m.emoji}</span>
+                    <span className="text-sm font-semibold">{m.name}</span>
+                  </div>
+                  <p className="mt-1 text-[0.65rem] leading-snug text-slate-500">
+                    {m.description}
+                  </p>
+                </button>
+                {m.id !== "none" && (
+                  <button
+                    type="button"
+                    onClick={() => playMoodPreview(m)}
+                    disabled={disabled}
+                    className="mt-2 inline-flex items-center gap-1 rounded-lg border border-emerald-300 bg-white px-2 py-1 text-[0.65rem] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isPlaying ? (
+                      <Pause className="size-3" />
+                    ) : (
+                      <Play className="size-3" />
+                    )}
+                    {disabled ? "No track" : isPlaying ? "Stop" : "Play"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {moodId !== "none" && (
+          <div className="mt-5 rounded-2xl border border-[#e8e8f0] bg-slate-50 p-4">
+            <label className="text-[0.7rem] font-semibold tracking-wide text-slate-500 uppercase">
+              Music volume · {Math.round(musicVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.02}
+              value={musicVolume}
+              onChange={(e) => setMusicVolume(Number(e.target.value))}
+              className="mt-2 block w-full accent-emerald-600"
+            />
+            <p className="mt-1 text-[0.7rem] text-slate-500">
+              Lower = more voice forward. 18% is a safe default.
+            </p>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={mixAudio}
+          disabled={!!busy || !voiceoverUrl}
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy === "Mixing voice + music…" ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> Mixing voice + music…
+            </>
+          ) : moodId === "none" ? (
+            <>
+              <VolumeX className="size-4" /> Skip music (voice only)
+            </>
+          ) : (
+            <>
+              <Music className="size-4" /> Mix voice + music
+            </>
+          )}
+        </button>
+
+        {mixDone && voiceoverUrl && (
+          <div className="mt-4 rounded-2xl border border-[#e8e8f0] bg-white p-3">
+            <div className="text-[0.7rem] font-semibold tracking-wide text-slate-500 uppercase">
+              Final audio preview
+            </div>
+            <audio src={voiceoverUrl} controls className="mt-2 w-full" />
+          </div>
+        )}
       </StepCard>
 
       {/* Step 4 — Images */}
@@ -512,9 +775,18 @@ export default function CreateV0Page() {
               disabled={!!busy || !voiceoverUrl || files.length < 1}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Wand2 className="size-4" />
-              Generate timeline + motion
-              <ArrowRight className="size-4" />
+              {busy ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  {busy.replace(/…$/, "")}…
+                </>
+              ) : (
+                <>
+                  <Wand2 className="size-4" />
+                  Generate timeline + motion
+                  <ArrowRight className="size-4" />
+                </>
+              )}
             </button>
           </>
         )}
@@ -652,7 +924,7 @@ export default function CreateV0Page() {
           disabled={!!busy || !clipsReady}
           className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {busy?.startsWith("ffmpeg") ? (
+          {busy ? (
             <>
               <Loader2 className="size-4 animate-spin" /> {busy}
             </>
