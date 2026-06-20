@@ -1,7 +1,9 @@
 import {
+  Activity,
   Camera,
   FileText,
   FileVideo,
+  Image as ImageIcon,
   Mic,
   Music,
   Rocket,
@@ -27,17 +29,12 @@ const STEPS: {
     title: "Script Input",
     status: "done",
     bullets: [
-      "User pastes a script (30–120 seconds).",
-      "System analyses and displays Word count, Estimated voice duration, Estimated reel duration, Recommended number of images.",
+      "User pastes a script.",
+      "System displays Word count, Estimated audio duration, Estimated reel duration.",
     ],
     panel: {
       label: "Live analyser",
-      lines: [
-        "Words: 182",
-        "Estimated voice: 72 sec",
-        "Estimated reel: 72 sec",
-        "Recommended images: 8",
-      ],
+      lines: ["Words: 182", "Estimated audio: 72 sec", "Estimated reel: 72 sec"],
     },
   },
   {
@@ -46,19 +43,20 @@ const STEPS: {
     title: "AI Voice Generation",
     status: "partial",
     bullets: [
-      "Generate a high-quality, human-like voiceover (Edge TTS Hindi/Indian or ElevenLabs English).",
-      "Audio preview player with ▶ Play · duration · voice name.",
-      "Regenerate unlimited times — endpoint already wired (/api/projects/[id]/regenerate-voice).",
-      "TODO: voice customization instructions — 'more emotional', 'documentary style', 'deep male', 'warm female'.",
-      "Output: final approved audio file + exact audio duration.",
+      "Generate a realistic voiceover from the script.",
+      "Multiple voice options (Edge TTS Hindi/Indian — free, or ElevenLabs English).",
+      "Audio preview player.",
+      "Unlimited regeneration — endpoint already wired (/api/projects/[id]/regenerate-voice).",
+      "TODO: voice instruction tweaks — 'more emotional', 'documentary style', 'slower', 'faster', 'deep male voice'.",
+      "Output: final audio file + exact audio duration.",
     ],
     panel: {
-      label: "Customization (planned)",
+      label: "Voice instructions (planned)",
       lines: [
         "More emotional",
-        "More energetic",
-        "Slower pacing",
         "Documentary style",
+        "Slower",
+        "Faster",
         "Deep male voice",
         "Warm female voice",
       ],
@@ -67,81 +65,129 @@ const STEPS: {
   {
     num: 3,
     icon: Music,
-    title: "Background Music Selection",
+    title: "Background Music",
     status: "planned",
     bullets: [
       "User picks a track from a built-in royalty-free music library.",
-      "Preview tracks before selecting.",
-      "Adjust music volume (0–100%) so it ducks under the voice.",
+      "Preview music tracks before selecting.",
+      "Volume control (0–100%) so the music ducks under the voice.",
       "Replace music anytime without re-doing voiceover.",
-      "System mixes Voiceover + Background Music with ffmpeg ducking → single track for assembly.",
+      "Output: final mixed audio track — Voice + Background Music.",
     ],
   },
   {
     num: 4,
-    icon: Wand2,
-    title: "Image Planning & Motion Direction",
-    status: "partial",
+    icon: ImageIcon,
+    title: "Upload Images",
+    status: "done",
     bullets: [
-      "User uploads 6–12 images.",
-      "Claude splits the script into image segments matched 1:1 with images.",
-      "For every image, system computes Duration based on narration timing.",
-      "For every image, Claude writes a Motion direction — Motion, Camera, Focus, Emotion.",
-      "Output is a downloadable plan the user takes to their image-to-video tool.",
+      "User uploads images in the EXACT order they want them to appear.",
+      "ReelForge does NOT reorder — the uploaded order is final.",
+      "Images saved on disk under public/projects/<id>/references/.",
     ],
     panel: {
-      label: "Per-image plan output",
-      lines: [
-        "Image 1",
-        "  Duration: 4.8 sec",
-        "  Motion: Slow Push In",
-        "  Focus: Question Mark",
-        "  Emotion: Mystery",
-        "",
-        "Image 2",
-        "  Duration: 6.1 sec",
-        "  Motion: Orbit Center",
-        "  Focus: Zodiac Wheel",
-        "  Emotion: Discovery",
-      ],
+      label: "Upload order is final",
+      lines: ["Image 1", "Image 2", "Image 3", "Image 4", "..."],
     },
   },
   {
     num: 5,
+    icon: Activity,
+    title: "Audio Timeline Analysis  · core feature",
+    status: "partial",
+    bullets: [
+      "The system reads the final voiceover, the script and the image count.",
+      "Automatically splits the narration into one section per image.",
+      "For every image computes Script segment, Start time, End time, Audio duration, Recommended clip length.",
+      "Claude already plans scene captions + per-scene timings — surfacing the per-image readable plan is the remaining work.",
+    ],
+    panel: {
+      label: "Per-image plan (example)",
+      lines: [
+        "Image 1",
+        '  Text: "Kya astrologers sach mein soulmate"',
+        "  Clip length: 4.8 sec",
+        "",
+        "Image 2",
+        '  Text: "Ya phir ye sab random guessing hai?"',
+        "  Clip length: 3.5 sec",
+        "",
+        "Image 3",
+        '  Text: "Jab aapne apni pehli saans li thi..."',
+        "  Clip length: 5.2 sec",
+      ],
+    },
+  },
+  {
+    num: 6,
+    icon: Wand2,
+    title: "Motion Direction Generation",
+    status: "partial",
+    bullets: [
+      "For every image, Claude writes a one-sentence motion prompt tied to that script segment.",
+      "Same vision-based prompt used today on the Image → Video page — just generated per image in batch.",
+      "Output per image: Script segment + Clip duration + Motion direction.",
+    ],
+    panel: {
+      label: "Motion direction (example)",
+      lines: [
+        "Image 1",
+        "  Motion: Slow cinematic push toward question mark",
+        "  Duration: 4.8 sec",
+        "",
+        "Image 2",
+        "  Motion: Slow zoom into zodiac wheel",
+        "  Duration: 3.5 sec",
+        "",
+        "Image 3",
+        "  Motion: Dolly forward toward couple",
+        "  Duration: 5.2 sec",
+      ],
+    },
+  },
+  {
+    num: 7,
     icon: Camera,
     title: "External Image-to-Video Generation",
     status: "done",
     bullets: [
-      "User takes each image + its motion direction into Google Flow / Veo / Runway / Pika.",
-      "Generates each clip externally using their own credits (e.g. 864 free Flow credits).",
+      "User copies Image + Clip duration + Motion direction into Google Flow / Veo / Runway / Pika.",
+      "Generates each clip externally using their own credits (eg. 864 free Flow credits).",
       "ReelForge does NOT call any I2V API → zero per-clip cost for the platform.",
-      "Output: a folder of clip_1.mp4 … clip_n.mp4 the user downloads.",
+      "Output: clip_1.mp4 … clip_n.mp4 the user downloads.",
     ],
   },
   {
-    num: 6,
+    num: 8,
     icon: Upload,
-    title: "Upload Generated Video Clips",
+    title: "Upload Generated Clips",
     status: "planned",
     bullets: [
-      "User drags-drops all clips back into ReelForge in the right order.",
-      "System validates: filename / order match the plan, expected duration ± tolerance, codec OK.",
+      "User drags-drops all generated clips back into ReelForge in the same order as the images.",
+      "System validates per clip: expected duration ± tolerance, codec, resolution.",
       "Per-clip status: ✓ accepted · ⚠ duration mismatch · ✗ unreadable.",
-      "User can swap a clip in place without re-doing the rest.",
+      "User can swap a single clip in place without re-doing the rest.",
     ],
   },
   {
-    num: 7,
+    num: 9,
     icon: FileVideo,
     title: "Final Reel Assembly",
     status: "partial",
     bullets: [
-      "ReelForge combines: uploaded clips + approved voice+music track + auto-generated captions + basic transitions.",
-      "Rendered locally via Remotion (or ffmpeg concat for the fast path) → final_reel.mp4.",
-      "Today the assembler runs on Ken-Burns-still-images instead of uploaded video clips — needs the upload step (6) to land first.",
+      "ReelForge combines: uploaded clips + voice + music + auto-generated captions + basic transitions.",
+      "Rendered locally via Remotion (or ffmpeg concat) → final_reel.mp4.",
+      "Today the assembler still runs on Ken-Burns stills; switching to uploaded clips lands once step 8 ships.",
     ],
   },
 ];
+
+const DIRECTOR_DECISIONS = [
+  "What text belongs to each image",
+  "How long each image clip should be",
+  "What camera movement should be used",
+  "How everything should be assembled — clips + voice + music + captions",
+] as const;
 
 export default function V0PlanPage() {
   const total = STEPS.length;
@@ -157,14 +203,16 @@ export default function V0PlanPage() {
             <Rocket className="size-6" strokeWidth={1.8} />
           </span>
           <div>
-            <h1 className="text-2xl font-semibold">Version 0 Plan</h1>
-            <p className="mt-1 max-w-3xl text-sm text-slate-500">
-              The MVP that ships first. ReelForge handles planning, audio,
-              motion direction, and final assembly — but the user generates
-              the actual image-to-video clips externally (Flow / Veo /
-              Runway). Keeps the platform <strong>simple, fast, and
-              affordable</strong> while creators tap the best I2V models with
-              their own credits.
+            <h1 className="text-2xl font-semibold">Version 0 — AI Reel Director</h1>
+            <p className="mt-2 max-w-3xl text-sm text-slate-600">
+              Help creators convert a script and manually-created images into
+              a complete reel.{" "}
+              <strong className="text-slate-900">
+                ReelForge does NOT generate image-to-video clips.
+              </strong>{" "}
+              It handles voice, timing, music, motion direction and assembly
+              — leaving the actual clip generation to whichever external tool
+              the creator prefers.
             </p>
           </div>
         </div>
@@ -178,35 +226,40 @@ export default function V0PlanPage() {
 
       <section className="rounded-3xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-6 lg:p-8">
         <div className="flex items-start justify-between gap-4">
-          <h2 className="text-xl font-semibold">V0 — full workflow</h2>
+          <h2 className="text-xl font-semibold">V0 — full workflow (9 steps)</h2>
           <div className="hidden gap-1.5 text-[0.7rem] sm:flex">
             <Legend status="done" label="Shipped" />
             <Legend status="partial" label="Partial" />
             <Legend status="planned" label="Planned" />
           </div>
         </div>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          ReelForge owns steps 1–4, 6, 7. The user owns step 5 (their I2V
-          tool of choice). Best for testing immediately without API costs.
-        </p>
 
-        <ol className="mt-8 space-y-4">
+        <ol className="mt-6 space-y-4">
           {STEPS.map((s) => (
             <V0Step key={s.num} step={s} />
           ))}
         </ol>
 
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-emerald-200 bg-white p-5">
-            <h3 className="text-sm font-semibold text-slate-800">
-              V0 philosophy
+          <div className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5">
+            <h3 className="text-sm font-semibold text-emerald-900">
+              ✦ ReelForge is an AI Reel Director
             </h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              ReelForge does <strong>not</strong> generate image-to-video
-              clips itself. It is the planning, audio, timing, motion-direction
-              and final-assembly engine. Creators use whichever I2V model is
-              best on the day — Veo today, Sora tomorrow — and ReelForge stays
-              the constant glue.
+            <p className="mt-2 text-sm leading-relaxed text-emerald-900/80">
+              Not an image-to-video generator. ReelForge is the director who
+              decides:
+            </p>
+            <ul className="mt-3 space-y-1.5 text-sm text-emerald-900">
+              {DIRECTOR_DECISIONS.map((d) => (
+                <li key={d} className="flex items-start gap-2">
+                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-600" />
+                  <span>{d}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-sm leading-relaxed text-emerald-900/80">
+              External tools like Google Flow / Veo / Runway do the actual
+              camera work. ReelForge is the brain on top.
             </p>
           </div>
           <div className="rounded-2xl border border-emerald-200 bg-white p-5">
@@ -224,7 +277,7 @@ export default function V0PlanPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500" />
-                <span>Locks in the planning + assembly UX (the hard parts) before adding I2V automation in V1.</span>
+                <span>Locks in the planning + assembly UX before adding I2V automation in V1.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-500" />
@@ -239,7 +292,7 @@ export default function V0PlanPage() {
           <pre className="mt-3 overflow-x-auto text-[0.78rem] leading-relaxed text-slate-700">
 {`Paste Script
    ↓
-Live stats (words, duration, recommended images)
+Live stats (words, duration)
    ↓
 Generate Voiceover
    ↓
@@ -247,19 +300,21 @@ Preview & regenerate audio (unlimited)
    ↓
 Pick Background Music
    ↓
-Upload Images (6–12)
+Upload Images (ORDER IS FINAL)
    ↓
-ReelForge writes per-image Motion Direction plan
+Audio Timeline Analysis — split narration per image
    ↓
-[ User exits to Google Flow / Veo / Runway ]
-[ Generates each clip externally with their own credits ]
+Motion Direction Generation — Claude writes per-image motion prompt
+   ↓
+[ Export plan: image + duration + motion direction ]
+[ User generates clips in Google Flow / Veo / Runway ]
 [ Downloads clip_1.mp4 … clip_n.mp4 ]
    ↓
-Upload all generated clips back into ReelForge
+Upload Generated Clips back into ReelForge
    ↓
 ReelForge validates order, duration, codec
    ↓
-Final assembly: clips + voice + music + captions
+Final Assembly: clips + voice + music + captions + transitions
    ↓
 final_reel.mp4`}
           </pre>
@@ -275,15 +330,15 @@ final_reel.mp4`}
         <ul className="mt-4 space-y-2 text-sm text-slate-700">
           <li className="flex items-start gap-2">
             <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-violet-500" />
-            <span>Step 5 becomes "Generate Clips" — calls fal.ai Kling / Segmind Veo per image, same per-clip Preview / Regenerate / Edit Motion UX from the V1 spec.</span>
+            <span>Step 7 becomes "Generate Clips" — calls fal.ai Kling / Segmind Veo per image, with the V1 per-clip Preview / Regenerate / Edit Motion UX.</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-violet-500" />
-            <span>Step 6 disappears (no manual upload) but stays available as a fallback for users who still want to bring their own clips.</span>
+            <span>Step 8 stays available as a fallback for users who still want to bring their own clips.</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-violet-500" />
-            <span>Everything else stays identical — that&apos;s the payoff of getting the planning + assembly right in V0.</span>
+            <span>Everything else stays identical — the payoff of getting the planning + assembly right in V0.</span>
           </li>
         </ul>
       </section>
@@ -307,7 +362,7 @@ function V0Step({ step }: { step: (typeof STEPS)[number] }) {
         : "Planned";
 
   return (
-    <li className="grid grid-cols-1 gap-4 rounded-2xl border border-[#e8e8f0] bg-white p-5 lg:grid-cols-[1fr_280px]">
+    <li className="grid grid-cols-1 gap-4 rounded-2xl border border-[#e8e8f0] bg-white p-5 lg:grid-cols-[1fr_320px]">
       <div>
         <div className="flex items-center gap-3">
           <span className="flex size-8 items-center justify-center rounded-full bg-emerald-600 text-xs font-semibold text-white">
