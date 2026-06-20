@@ -1,5 +1,7 @@
-export const MAX_DURATION_SEC = 90;
-export const MAX_SCRIPT_CHARS = 1200; // ≈ 200 words ≈ 80 s at TTS speed
+// No hard cap — long scripts are fine. Keep big numbers so existing checks
+// effectively never trip but still protect against megabyte-sized pastes.
+export const MAX_DURATION_SEC = 3600; // 60 min
+export const MAX_SCRIPT_CHARS = 50000; // ≈ 8000 words ≈ 50 min at TTS speed
 export const WORDS_PER_SECOND = 2.5;
 
 export function countWords(text: string) {

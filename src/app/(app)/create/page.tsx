@@ -200,13 +200,13 @@ export default function CreatePage() {
             <SectionHeader
               icon={FileText}
               title="1. Write Script"
-              sub={`Reel length is set by the voiceover — max ${MAX_DURATION_SEC}s.`}
+              sub="Reel length is set by the voiceover — no fixed cap."
             />
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="Words" value={String(wordCount)} />
-            <Stat label="Characters" value={`${charCount} / ${MAX_SCRIPT_CHARS}`} warn={overLimit} />
+            <Stat label="Characters" value={String(charCount)} />
             <Stat label="Estimated audio" value={`~${estimatedSec}s`} />
             <Stat label="Estimated reel" value={`~${estimatedSec}s`} accent />
           </div>
@@ -232,7 +232,7 @@ export default function CreatePage() {
                 )}
               >
                 {overLimit
-                  ? `Too long — trim to ${MAX_SCRIPT_CHARS} characters so the voice stays under ${MAX_DURATION_SEC}s`
+                  ? `Script is unusually long (~${MAX_SCRIPT_CHARS} chars max). Trim if you can.`
                   : "Tip: 1 word ≈ 0.4s of narration"}
               </span>
               <span
@@ -240,7 +240,7 @@ export default function CreatePage() {
                   overLimit ? "font-semibold text-rose-600" : "text-slate-400"
                 }
               >
-                {script.length} / {MAX_SCRIPT_CHARS}
+                {script.length} chars
               </span>
             </div>
           </div>

@@ -477,11 +477,7 @@ export default function CreateV0Page() {
         />
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Stat label="Words" value={String(wordCount)} />
-          <Stat
-            label="Characters"
-            value={`${charCount} / ${MAX_SCRIPT_CHARS}`}
-            warn={charCount > MAX_SCRIPT_CHARS}
-          />
+          <Stat label="Characters" value={String(charCount)} />
           <Stat label="Est. audio" value={`~${estimatedSec}s`} />
           <Stat label="Est. reel" value={`~${estimatedSec}s`} accent />
         </div>
