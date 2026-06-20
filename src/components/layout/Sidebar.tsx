@@ -21,6 +21,7 @@ import { cn } from "@/lib/cn";
 
 const NAV = [
   { label: "Dashboard", href: "/", icon: Home },
+  { label: "Create Video — V0", href: "/create-v0", icon: Rocket },
   { label: "Create Video", href: "/create", icon: Plus },
   { label: "Image → Video", href: "/image-to-video", icon: Film },
   { label: "Projects", href: "/projects", icon: Folder },
