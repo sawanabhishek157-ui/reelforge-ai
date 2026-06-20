@@ -8,6 +8,7 @@ import {
   Folder,
   Home,
   Image as ImageIcon,
+  Layers,
   Map,
   Mic,
   Plus,
@@ -29,6 +30,7 @@ const NAV = [
   { label: "Voice Library", href: "/voice-library", icon: Mic },
   { label: "Tech Docs", href: "/docs", icon: BookOpen },
   { label: "V0 Plan", href: "/v0-plan", icon: Rocket },
+  { label: "V0 Tech Docs", href: "/v0-docs", icon: Layers },
   { label: "V1 Plan", href: "/roadmap", icon: Map },
 ] as const;
 
