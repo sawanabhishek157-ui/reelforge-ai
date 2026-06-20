@@ -8,6 +8,7 @@ import {
   Folder,
   Home,
   Image as ImageIcon,
+  Map,
   Mic,
   Plus,
   Settings,
@@ -24,7 +25,8 @@ const NAV = [
   { label: "Projects", href: "/projects", icon: Folder },
   { label: "Assets", href: "/assets", icon: ImageIcon },
   { label: "Voice Library", href: "/voice-library", icon: Mic },
-  { label: "Docs", href: "/docs", icon: BookOpen },
+  { label: "Tech Docs", href: "/docs", icon: BookOpen },
+  { label: "Version Plan", href: "/roadmap", icon: Map },
 ] as const;
 
 export function Sidebar() {
