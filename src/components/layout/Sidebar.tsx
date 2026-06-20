@@ -11,6 +11,7 @@ import {
   Map,
   Mic,
   Plus,
+  Rocket,
   Settings,
   Sparkles,
 } from "lucide-react";
@@ -26,7 +27,8 @@ const NAV = [
   { label: "Assets", href: "/assets", icon: ImageIcon },
   { label: "Voice Library", href: "/voice-library", icon: Mic },
   { label: "Tech Docs", href: "/docs", icon: BookOpen },
-  { label: "Version Plan", href: "/roadmap", icon: Map },
+  { label: "V0 Plan", href: "/v0-plan", icon: Rocket },
+  { label: "V1 Plan", href: "/roadmap", icon: Map },
 ] as const;
 
 export function Sidebar() {
