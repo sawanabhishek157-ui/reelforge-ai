@@ -54,4 +54,4 @@ next-env.d.ts
 /public/voice-samples/
 
 # User-supplied music — README stays, MP3s don't
-/public/music/*.mp3
+# /public/music/*.mp3   (placeholders are committed; replace freely)
