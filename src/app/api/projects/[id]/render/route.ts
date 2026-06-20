@@ -6,10 +6,20 @@ import {
   toPublicUrl,
 } from "@/lib/paths";
 import { renderReel } from "@/lib/remotion-render";
-import type { Plan } from "@/remotion/types";
+import { aspectDims, type Aspect } from "@/lib/duration";
+import type { Motion, Plan } from "@/remotion/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 600;
+
+const VALID_MOTIONS: Motion[] = ["zoom-in", "zoom-out", "pan-left", "pan-right"];
+
+function normalizeMotion(raw: string, idx: number): Motion {
+  if (VALID_MOTIONS.includes(raw as Motion)) return raw as Motion;
+  if (raw === "in") return "zoom-in";
+  if (raw === "out") return "zoom-out";
+  return VALID_MOTIONS[idx % VALID_MOTIONS.length];
+}
 
 export async function POST(
   _req: Request,
@@ -19,10 +29,10 @@ export async function POST(
 
   const project = db
     .prepare(
-      `SELECT id, voiceover_path as voiceoverPath, plan_json as planJson FROM projects WHERE id = ?`,
+      `SELECT id, voiceover_path as voiceoverPath, plan_json as planJson, aspect FROM projects WHERE id = ?`,
     )
     .get(id) as
-    | { id: string; voiceoverPath: string | null; planJson: string | null }
+    | { id: string; voiceoverPath: string | null; planJson: string | null; aspect: string | null }
     | undefined;
 
   if (!project) {
@@ -46,7 +56,7 @@ export async function POST(
     endSec: number;
     imagePath: string;
     caption: string;
-    zoom: "in" | "out";
+    zoom: string;
   }[];
 
   if (scenes.length === 0) {
@@ -54,15 +64,20 @@ export async function POST(
   }
 
   const planMeta = JSON.parse(project.planJson) as { durationSec: number };
+  const aspect = (project.aspect ?? "9:16") as Aspect;
+  const dims = aspectDims(aspect);
+
   const plan: Plan = {
     durationSec: planMeta.durationSec,
     voiceoverUrl: "/" + project.voiceoverPath,
+    width: dims.width,
+    height: dims.height,
     scenes: scenes.map((s) => ({
       startSec: s.startSec,
       endSec: s.endSec,
       imageUrl: "/" + s.imagePath,
       caption: s.caption,
-      zoom: s.zoom,
+      motion: normalizeMotion(s.zoom, s.idx),
     })),
   };
 
@@ -73,14 +88,12 @@ export async function POST(
   const outAbs = projectOutputPath(id);
 
   try {
-    let lastLog = "";
     await renderReel({
       plan,
       outputPath: outAbs,
       onLog: (line) => {
-        lastLog = line.toString();
         if (process.env.NODE_ENV !== "production") {
-          process.stdout.write(lastLog);
+          process.stdout.write(line.toString());
         }
       },
     });
@@ -90,7 +103,7 @@ export async function POST(
       `UPDATE projects SET output_path = ?, status = 'done' WHERE id = ?`,
     ).run(outputUrl.replace(/^\//, ""), id);
 
-    return NextResponse.json({ ok: true, outputUrl });
+    return NextResponse.json({ ok: true, outputUrl, aspect });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Render failed";
     db.prepare(`UPDATE projects SET status = 'failed', error = ? WHERE id = ?`).run(

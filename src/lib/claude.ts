@@ -50,6 +50,55 @@ Schema:
   ]
 }`;
 
+/**
+ * Look at an image and write a one-sentence cinematic motion prompt for Veo.
+ * Vision-only — no extra context needed.
+ */
+export async function generateMotionPrompt(opts: {
+  imageBytes: Buffer;
+  imageMimeType: string;
+}): Promise<string> {
+  const { imageBytes, imageMimeType } = opts;
+
+  const resp = await client().messages.create({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 200,
+    system:
+      "You are a video director writing a single short motion-prompt for Google Veo image-to-video. " +
+      "Look at the image and propose subtle, cinematic motion that would bring it to life as a 3-second clip. " +
+      "Mention camera move (zoom in/out, slow pan, gentle orbit) AND subject motion (breathing, hair drift, ambient breeze, twinkling stars, glow pulse). " +
+      "STRICT: do NOT add or describe any text, captions, subtitles, watermarks, logos or UI elements. " +
+      "Keep it under 25 words. Reply with ONLY the prompt — no quotes, no preface.",
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: (imageMimeType.match(
+                /^image\/(png|jpe?g|gif|webp)$/,
+              )?.[0] ?? "image/png") as "image/png" | "image/jpeg" | "image/gif" | "image/webp",
+              data: imageBytes.toString("base64"),
+            },
+          },
+          { type: "text", text: "Write the motion prompt for this image." },
+        ],
+      },
+    ],
+  });
+
+  const text = resp.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { type: "text"; text: string }).text)
+    .join(" ")
+    .trim()
+    .replace(/^["']|["']$/g, "");
+
+  return text || "Slow cinematic push-in with gentle ambient motion.";
+}
+
 export async function planReel(opts: {
   script: string;
   durationSec: number;

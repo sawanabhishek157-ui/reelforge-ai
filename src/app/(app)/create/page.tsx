@@ -21,20 +21,27 @@ import { Waveform } from "@/components/ui/Waveform";
 import { cn } from "@/lib/cn";
 import { ensureOk } from "@/lib/api";
 import {
+  ASPECTS,
   MAX_DURATION_SEC,
   MAX_SCRIPT_CHARS,
+  countChars,
+  countWords,
   estimateDurationSec,
+  type Aspect,
 } from "@/lib/duration";
 
 const VOICE_OPTIONS = [
-  { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah — soft female", style: "Soft" },
-  { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel — calm female", style: "Calm" },
-  { id: "AZnzlk1XvdvUeBnXmlld", label: "Domi — confident female", style: "Confident" },
-  { id: "MF3mGyEYCl7XYWbV9V6O", label: "Elli — young female", style: "Young" },
-  { id: "ErXwobaYiN019PkySvjV", label: "Antoni — warm male", style: "Warm" },
-  { id: "29vD33N1CtxCmqQRPOHJ", label: "Drew — clear male", style: "Clear" },
-  { id: "VR6AewLTigWG4xSOukaG", label: "Arnold — deep male", style: "Deep" },
-  { id: "IKne3meq5aSn9XLyUdCD", label: "Charlie — natural male", style: "Natural" },
+  // Hindi — FREE (Microsoft Edge TTS, no API key, native voices)
+  { id: "hi-IN-SwaraNeural", label: "Swara — Hindi female (FREE)", style: "हिंदी · Warm" },
+  { id: "hi-IN-MadhurNeural", label: "Madhur — Hindi male (FREE)", style: "हिंदी · Friendly" },
+  // Indian English — FREE
+  { id: "en-IN-NeerjaNeural", label: "Neerja — Indian English f. (FREE)", style: "Clear" },
+  { id: "en-IN-PrabhatNeural", label: "Prabhat — Indian English m. (FREE)", style: "Confident" },
+  // ElevenLabs — premium English (uses your free quota)
+  { id: "EXAVITQu4vr4xnSDxMaL", label: "Sarah — English female", style: "Soft (ElevenLabs)" },
+  { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel — English female", style: "Calm (ElevenLabs)" },
+  { id: "ErXwobaYiN019PkySvjV", label: "Antoni — English male", style: "Warm (ElevenLabs)" },
+  { id: "VR6AewLTigWG4xSOukaG", label: "Arnold — English male", style: "Deep (ElevenLabs)" },
 ] as const;
 
 type ApiProject = {
@@ -48,16 +55,19 @@ type ScenePreview = {
   source: "reference" | "generated";
   imageUrl: string;
   caption: string;
-  zoom: "in" | "out";
+  motion: "zoom-in" | "zoom-out" | "pan-left" | "pan-right";
 };
 
 export default function CreatePage() {
   const [files, setFiles] = useState<File[]>([]);
   const [script, setScript] = useState("");
   const [voiceId, setVoiceId] = useState<string>(VOICE_OPTIONS[0].id);
+  const [aspect, setAspect] = useState<Aspect>("9:16");
 
+  const wordCount = useMemo(() => countWords(script), [script]);
+  const charCount = useMemo(() => countChars(script), [script]);
   const estimatedSec = useMemo(() => estimateDurationSec(script), [script]);
-  const overLimit = script.length > MAX_SCRIPT_CHARS;
+  const overLimit = charCount > MAX_SCRIPT_CHARS;
 
   const [projectId, setProjectId] = useState<string | null>(null);
   const [stage, setStage] = useState<
@@ -115,6 +125,7 @@ export default function CreatePage() {
       const fd = new FormData();
       fd.set("script", script);
       fd.set("voiceId", voiceId);
+      fd.set("aspect", aspect);
       fd.set("title", script.slice(0, 60));
       files.forEach((f) => fd.append("images", f));
 
@@ -189,18 +200,15 @@ export default function CreatePage() {
             <SectionHeader
               icon={FileText}
               title="1. Write Script"
-              sub={`Reel length is set by the voiceover — max ${MAX_DURATION_SEC}s. No need to pick a duration.`}
+              sub={`Reel length is set by the voiceover — max ${MAX_DURATION_SEC}s.`}
             />
-            <div
-              className={cn(
-                "shrink-0 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset",
-                overLimit
-                  ? "bg-rose-50 text-rose-700 ring-rose-200"
-                  : "bg-violet-50 text-violet-700 ring-violet-200",
-              )}
-            >
-              ~{estimatedSec}s estimated
-            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Stat label="Words" value={String(wordCount)} />
+            <Stat label="Characters" value={`${charCount} / ${MAX_SCRIPT_CHARS}`} warn={overLimit} />
+            <Stat label="Estimated audio" value={`~${estimatedSec}s`} />
+            <Stat label="Estimated reel" value={`~${estimatedSec}s`} accent />
           </div>
 
           <div className="mt-5">
@@ -240,8 +248,39 @@ export default function CreatePage() {
 
         <section className="rounded-3xl border border-[#e8e8f0] bg-white p-6 lg:p-8">
           <SectionHeader
+            icon={Sparkles}
+            title="2. Video Format"
+            sub="Pick the aspect ratio for the final MP4."
+          />
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {ASPECTS.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => setAspect(a.id)}
+                className={cn(
+                  "flex items-center gap-3 rounded-2xl border p-3 text-left transition-colors",
+                  aspect === a.id
+                    ? "border-violet-300 bg-violet-50"
+                    : "border-[#e8e8f0] bg-white hover:bg-slate-50",
+                )}
+              >
+                <AspectIcon aspect={a.id} active={aspect === a.id} />
+                <div>
+                  <div className="text-sm font-semibold">{a.label}</div>
+                  <div className="text-[0.7rem] text-slate-500">
+                    {a.width}×{a.height} · {a.hint}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-[#e8e8f0] bg-white p-6 lg:p-8">
+          <SectionHeader
             icon={ImageIcon}
-            title="2. Upload Reference Images"
+            title="3. Upload Reference Images"
             sub="3–8 images. The video uses only these — no AI image generation."
           />
 
@@ -316,8 +355,8 @@ export default function CreatePage() {
         <section className="rounded-3xl border border-[#e8e8f0] bg-white p-6 lg:p-8">
           <SectionHeader
             icon={Mic}
-            title="3. Choose Voice"
-            sub="ElevenLabs Multilingual v2 — natural, free 10k chars/month"
+            title="4. Choose Voice"
+            sub="Hindi + Indian-English voices are FREE (Microsoft Edge TTS, no key). English voices use ElevenLabs."
           />
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -358,11 +397,18 @@ export default function CreatePage() {
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold">Video Preview</h2>
             <span className="rounded-md border border-[#e8e8f0] px-2 py-0.5 text-[0.65rem] font-semibold text-slate-500">
-              9:16
+              {aspect}
             </span>
           </div>
 
-          <div className="relative mx-auto aspect-[9/16] w-full overflow-hidden rounded-[28px] border-[6px] border-slate-900 bg-gradient-to-b from-slate-900 to-slate-700 shadow-xl">
+          <div
+            className={cn(
+              "relative mx-auto w-full overflow-hidden rounded-[28px] border-[6px] border-slate-900 bg-gradient-to-b from-slate-900 to-slate-700 shadow-xl",
+              aspect === "9:16" && "aspect-[9/16]",
+              aspect === "16:9" && "aspect-video",
+              aspect === "1:1" && "aspect-square",
+            )}
+          >
             {stage === "done" && outputUrl ? (
               <video
                 src={outputUrl}
@@ -473,17 +519,11 @@ function EmptyPreview() {
 
 function PreviewFrame({ scene }: { scene: ScenePreview }) {
   return (
-    <>
-      <img
-        src={scene.imageUrl}
-        alt=""
-        className="absolute inset-0 size-full object-cover"
-      />
-      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-      <div className="absolute inset-x-6 bottom-12 text-center font-bold text-white text-2xl leading-tight drop-shadow-lg">
-        {scene.caption}
-      </div>
-    </>
+    <img
+      src={scene.imageUrl}
+      alt=""
+      className="absolute inset-0 size-full object-cover"
+    />
   );
 }
 
@@ -501,6 +541,58 @@ function StageCard({ stage }: { stage: string }) {
     <div className="mt-4 flex items-start gap-3 rounded-2xl border border-violet-100 bg-violet-50/70 p-4">
       <Sparkles className="size-5 shrink-0 text-violet-600" strokeWidth={1.8} />
       <p className="text-xs leading-relaxed text-violet-900/90">{map[stage]}</p>
+    </div>
+  );
+}
+
+function Stat({ label, value, warn, accent }: { label: string; value: string; warn?: boolean; accent?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border px-3 py-2.5",
+        warn
+          ? "border-rose-200 bg-rose-50"
+          : accent
+            ? "border-violet-200 bg-violet-50"
+            : "border-[#e8e8f0] bg-white",
+      )}
+    >
+      <div className="text-[0.65rem] font-semibold tracking-wide text-slate-500 uppercase">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-0.5 text-sm font-semibold",
+          warn ? "text-rose-700" : accent ? "text-violet-700" : "text-slate-800",
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function AspectIcon({ aspect, active }: { aspect: "9:16" | "16:9" | "1:1"; active: boolean }) {
+  const dims =
+    aspect === "9:16"
+      ? { w: 20, h: 36 }
+      : aspect === "1:1"
+        ? { w: 32, h: 32 }
+        : { w: 36, h: 20 };
+  return (
+    <div
+      className={cn(
+        "flex size-12 shrink-0 items-center justify-center rounded-xl",
+        active ? "bg-violet-100" : "bg-slate-100",
+      )}
+    >
+      <div
+        style={{ width: dims.w, height: dims.h }}
+        className={cn(
+          "rounded-md border-2",
+          active ? "border-violet-500" : "border-slate-400",
+        )}
+      />
     </div>
   );
 }

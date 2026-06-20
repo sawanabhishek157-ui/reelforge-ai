@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpen,
+  Film,
   Folder,
   Home,
   Image as ImageIcon,
@@ -18,9 +20,11 @@ import { cn } from "@/lib/cn";
 const NAV = [
   { label: "Dashboard", href: "/", icon: Home },
   { label: "Create Video", href: "/create", icon: Plus },
+  { label: "Image → Video", href: "/image-to-video", icon: Film },
   { label: "Projects", href: "/projects", icon: Folder },
   { label: "Assets", href: "/assets", icon: ImageIcon },
   { label: "Voice Library", href: "/voice-library", icon: Mic },
+  { label: "Docs", href: "/docs", icon: BookOpen },
 ] as const;
 
 export function Sidebar() {

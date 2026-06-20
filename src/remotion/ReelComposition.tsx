@@ -10,12 +10,11 @@ import {
   useVideoConfig,
 } from "remotion";
 
-import type { Plan, Scene } from "./types";
+import type { Motion, Plan, Scene } from "./types";
 
 const FPS = 30;
 
 function toStatic(url: string) {
-  // Plan URLs look like "/projects/<id>/scenes/x.png" — strip leading slash for staticFile
   return staticFile(url.replace(/^\//, ""));
 }
 
@@ -43,12 +42,7 @@ const SceneView: React.FC<{ scene: Scene }> = ({ scene }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
 
-  const scale = interpolate(
-    frame,
-    [0, durationInFrames],
-    scene.zoom === "in" ? [1.0, 1.18] : [1.18, 1.0],
-    { extrapolateRight: "clamp" },
-  );
+  const { scale, x, y } = kenBurnsTransform(frame, durationInFrames, scene.motion);
   const opacity = interpolate(
     frame,
     [0, 8, durationInFrames - 8, durationInFrames],
@@ -64,45 +58,27 @@ const SceneView: React.FC<{ scene: Scene }> = ({ scene }) => {
           width: "100%",
           height: "100%",
           objectFit: "cover",
-          transform: `scale(${scale})`,
+          transform: `translate(${x}%, ${y}%) scale(${scale})`,
         }}
       />
-      <AbsoluteFill
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,0.65) 100%)",
-        }}
-      />
-      <Caption text={scene.caption} />
     </AbsoluteFill>
   );
 };
 
-const Caption: React.FC<{ text: string }> = ({ text }) => {
-  const frame = useCurrentFrame();
-  const slide = interpolate(frame, [0, 10], [40, 0], {
-    extrapolateRight: "clamp",
-  });
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: 60,
-        right: 60,
-        bottom: 180,
-        textAlign: "center",
-        color: "white",
-        fontFamily:
-          "Inter, system-ui, -apple-system, 'Helvetica Neue', sans-serif",
-        fontWeight: 800,
-        fontSize: 64,
-        lineHeight: 1.15,
-        letterSpacing: -1,
-        textShadow: "0 6px 30px rgba(0,0,0,0.7)",
-        transform: `translateY(${slide}px)`,
-      }}
-    >
-      {text}
-    </div>
-  );
-};
+function kenBurnsTransform(frame: number, total: number, motion: Motion) {
+  const t = (n: number, range: [number, number]) =>
+    interpolate(n, [0, total], range, { extrapolateRight: "clamp" });
+
+  switch (motion) {
+    case "zoom-in":
+      return { scale: t(frame, [1.0, 1.18]), x: 0, y: 0 };
+    case "zoom-out":
+      return { scale: t(frame, [1.18, 1.0]), x: 0, y: 0 };
+    case "pan-left":
+      // Slight zoom + horizontal drift
+      return { scale: 1.18, x: t(frame, [3, -3]), y: 0 };
+    case "pan-right":
+      return { scale: 1.18, x: t(frame, [-3, 3]), y: 0 };
+  }
+}
+

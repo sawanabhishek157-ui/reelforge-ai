@@ -6,6 +6,8 @@ import type { VideoPlan } from "@/lib/claude";
 import { audioDurationSec, generateVoiceover, type VoiceName } from "@/lib/tts";
 import { MAX_DURATION_SEC } from "@/lib/duration";
 import { shortId } from "@/lib/ids";
+
+const MOTIONS = ["zoom-in", "pan-right", "zoom-out", "pan-left"] as const;
 import {
   ensureDir,
   projectVoicePath,
@@ -77,7 +79,7 @@ export async function POST(
       imageUrl: string;
       caption: string;
       prompt: string;
-      zoom: "in" | "out";
+      motion: (typeof MOTIONS)[number];
     }[] = [];
 
     for (const s of plan.scenes) {
@@ -90,6 +92,8 @@ export async function POST(
         Math.min(requested, references.length - 1),
       );
       const imageUrl = references[refIdx];
+      // Cycle motions for variety: zoom-in → pan-right → zoom-out → pan-left
+      const motion = MOTIONS[s.idx % MOTIONS.length];
       sceneRows.push({
         idx: s.idx,
         startSec: s.startSec,
@@ -98,7 +102,7 @@ export async function POST(
         imageUrl,
         caption: s.caption,
         prompt: s.prompt ?? "",
-        zoom: s.zoom,
+        motion,
       });
     }
 
@@ -143,7 +147,7 @@ export async function POST(
           s.imageUrl.replace(/^\//, ""),
           s.caption,
           s.prompt,
-          s.zoom,
+          s.motion,
         );
       }
       db.prepare(

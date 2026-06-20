@@ -46,3 +46,6 @@ next-env.d.ts
 /public/projects/
 /out/
 /.env.local
+
+# Veo job artefacts (downloaded MP4s, source uploads)
+/public/veo/

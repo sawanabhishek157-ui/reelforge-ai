@@ -24,6 +24,7 @@ function open() {
       duration_sec INTEGER,
       script TEXT,
       voice_id TEXT,
+      aspect TEXT DEFAULT '9:16',
       plan_json TEXT,
       voiceover_path TEXT,
       output_path TEXT,
@@ -55,7 +56,25 @@ function open() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_scenes_project ON scenes(project_id, idx);
+
+    CREATE TABLE IF NOT EXISTS veo_jobs (
+      id TEXT PRIMARY KEY,
+      op_name TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      duration_sec INTEGER,
+      source_path TEXT NOT NULL,
+      output_path TEXT,
+      status TEXT NOT NULL,
+      error TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+
+  // Idempotent migration: add `aspect` column to existing DBs
+  const cols = conn.prepare(`PRAGMA table_info(projects)`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === "aspect")) {
+    conn.exec(`ALTER TABLE projects ADD COLUMN aspect TEXT DEFAULT '9:16'`);
+  }
 
   return conn;
 }

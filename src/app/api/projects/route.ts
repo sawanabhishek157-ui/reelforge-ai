@@ -10,8 +10,10 @@ import {
   toPublicUrl,
 } from "@/lib/paths";
 import {
+  ASPECTS,
   MAX_SCRIPT_CHARS,
   estimateDurationSec,
+  type Aspect,
 } from "@/lib/duration";
 
 export const runtime = "nodejs";
@@ -23,6 +25,8 @@ export async function POST(req: Request) {
 
     const script = String(form.get("script") ?? "").trim();
     const voiceId = String(form.get("voiceId") ?? "alloy");
+    const aspectRaw = String(form.get("aspect") ?? "9:16");
+    const aspect: Aspect = (ASPECTS.find((a) => a.id === aspectRaw)?.id ?? "9:16") as Aspect;
     const title = String(form.get("title") ?? "Untitled reel").slice(0, 80);
 
     if (!script || script.length < 20) {
@@ -76,8 +80,8 @@ export async function POST(req: Request) {
 
     // 2. Insert the project row + asset rows atomically. Project FIRST (FK target).
     const insertProject = db.prepare(
-      `INSERT INTO projects (id, title, duration_sec, script, voice_id, status)
-       VALUES (?, ?, ?, ?, ?, 'draft')`,
+      `INSERT INTO projects (id, title, duration_sec, script, voice_id, aspect, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'draft')`,
     );
     const insertAsset = db.prepare(
       `INSERT INTO project_assets (id, project_id, kind, file_path, meta)
@@ -85,7 +89,7 @@ export async function POST(req: Request) {
     );
 
     const txn = db.transaction(() => {
-      insertProject.run(projectId, title, durationSec, script, voiceId);
+      insertProject.run(projectId, title, durationSec, script, voiceId, aspect);
       for (const w of writtenFiles) {
         insertAsset.run(
           shortId("a"),
@@ -103,6 +107,7 @@ export async function POST(req: Request) {
       durationSec,
       script,
       voiceId,
+      aspect,
       references: writtenFiles.map((w) => w.url),
       status: "draft",
     });
