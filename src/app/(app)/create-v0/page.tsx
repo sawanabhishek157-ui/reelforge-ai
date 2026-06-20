@@ -107,54 +107,32 @@ export default function CreateV0Page() {
     setBusy(null);
   }
 
-  // ───────────────────────── Action: generate plan + voice in one shot
-  async function generatePlanAndVoice() {
+  // ───────────────────────── Step 2 — Generate Voice (no images yet)
+  async function generateVoice() {
     setError(null);
     if (!scriptOk) return setError("Script must be 20–1200 characters.");
-    if (files.length < 1) return setError("Upload at least 1 image first.");
 
     try {
-      setBusy("Uploading project…");
-      const fd = new FormData();
-      fd.set("script", script);
-      fd.set("voiceId", voiceId);
-      fd.set("aspect", "9:16");
-      fd.set("title", script.slice(0, 60));
-      files.forEach((f) => fd.append("images", f));
+      // Create the project the first time, then just regenerate the voice afterwards
+      let pid = projectId;
+      if (!pid) {
+        setBusy("Creating project…");
+        const fd = new FormData();
+        fd.set("script", script);
+        fd.set("voiceId", voiceId);
+        fd.set("aspect", "9:16");
+        fd.set("title", script.slice(0, 60));
+        // NO images — we'll add them in step 4
+        const project = (await ensureOk(
+          await fetch("/api/projects", { method: "POST", body: fd }),
+        )) as { id: string };
+        pid = project.id;
+        setProjectId(pid);
+      }
 
-      const project = (await ensureOk(
-        await fetch("/api/projects", { method: "POST", body: fd }),
-      )) as { id: string };
-      setProjectId(project.id);
-
-      setBusy("Claude is splitting the script per image…");
-      await ensureOk(
-        await fetch(`/api/projects/${project.id}/plan`, { method: "POST" }),
-      );
-
-      setBusy("Generating voiceover + audio timeline…");
-      const gen = (await ensureOk(
-        await fetch(`/api/projects/${project.id}/generate`, { method: "POST" }),
-      )) as GenResponse;
-
-      setScenes(gen.scenes);
-      setVoiceoverUrl(gen.voiceoverUrl);
-      // Default motion direction per scene — user can edit
-      setMotionPrompts(gen.scenes.map((s) => defaultMotion(s.caption)));
-      setBusy(null);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Plan failed");
-      setBusy(null);
-    }
-  }
-
-  async function regenerateVoice() {
-    if (!projectId) return;
-    setError(null);
-    try {
-      setBusy("Regenerating voiceover…");
+      setBusy("Generating voiceover…");
       const data = (await ensureOk(
-        await fetch(`/api/projects/${projectId}/regenerate-voice`, {
+        await fetch(`/api/projects/${pid}/regenerate-voice`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ voiceId }),
@@ -163,7 +141,58 @@ export default function CreateV0Page() {
       setVoiceoverUrl(data.voiceoverUrl);
       setBusy(null);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Regen failed");
+      setError(e instanceof Error ? e.message : "Voice failed");
+      setBusy(null);
+    }
+  }
+
+  // ───────────────────────── Step 4 — Add images to existing project
+  async function addImages() {
+    if (!projectId) return setError("Generate voice first (step 2).");
+    if (files.length < 1) return setError("Pick at least 1 image first.");
+    setError(null);
+    try {
+      setBusy(`Uploading ${files.length} image${files.length === 1 ? "" : "s"}…`);
+      const fd = new FormData();
+      files.forEach((f) => fd.append("images", f));
+      await ensureOk(
+        await fetch(`/api/projects/${projectId}/images`, {
+          method: "POST",
+          body: fd,
+        }),
+      );
+      setBusy(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Add images failed");
+      setBusy(null);
+    }
+  }
+
+  // ───────────────────────── Step 5+6 — Audio Timeline + Motion Direction
+  async function generateTimeline() {
+    if (!projectId) return setError("Create project + voice first.");
+    if (files.length < 1) return setError("Upload images first.");
+    setError(null);
+    try {
+      setBusy("Adding images to project…");
+      await addImages();
+
+      setBusy("Claude is splitting the script per image…");
+      await ensureOk(
+        await fetch(`/api/projects/${projectId}/plan`, { method: "POST" }),
+      );
+
+      setBusy("Computing per-image timing…");
+      const gen = (await ensureOk(
+        await fetch(`/api/projects/${projectId}/generate`, { method: "POST" }),
+      )) as GenResponse;
+
+      setScenes(gen.scenes);
+      setVoiceoverUrl(gen.voiceoverUrl);
+      setMotionPrompts(gen.scenes.map((s) => defaultMotion(s.caption)));
+      setBusy(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Timeline failed");
       setBusy(null);
     }
   }
@@ -340,21 +369,27 @@ export default function CreateV0Page() {
           ))}
         </div>
 
+        <button
+          type="button"
+          onClick={generateVoice}
+          disabled={!!busy || !scriptOk}
+          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Mic className="size-4" />
+          {voiceoverUrl ? "Regenerate voiceover" : "Generate voiceover"}
+          <ArrowRight className="size-4" />
+        </button>
+
         {voiceoverUrl && (
           <div className="mt-4 rounded-2xl border border-[#e8e8f0] bg-slate-50 p-4">
             <div className="text-[0.7rem] font-semibold tracking-wide text-slate-500 uppercase">
-              Audio preview
+              Audio preview · Approve or regenerate
             </div>
             <audio src={voiceoverUrl} controls className="mt-2 w-full" />
-            <button
-              type="button"
-              onClick={regenerateVoice}
-              disabled={!!busy}
-              className="mt-3 inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50"
-            >
-              <Sparkles className="size-3.5" />
-              Regenerate with this voice
-            </button>
+            <p className="mt-2 text-xs text-slate-500">
+              Pick a different voice above and click <strong>Regenerate
+              voiceover</strong> if you want to try another.
+            </p>
           </div>
         )}
       </StepCard>
@@ -378,7 +413,13 @@ export default function CreateV0Page() {
         num={4}
         title="Upload Images (order is final)"
         icon={ImageIcon}
-        state={files.length >= 1 ? "done" : "active"}
+        state={
+          files.length >= 1
+            ? "done"
+            : voiceoverUrl
+              ? "active"
+              : "locked"
+        }
       >
         <label
           onDragOver={(e) => e.preventDefault()}
@@ -438,18 +479,10 @@ export default function CreateV0Page() {
           </div>
         )}
 
-        {!hasProject && (
-          <button
-            type="button"
-            onClick={generatePlanAndVoice}
-            disabled={!!busy || !scriptOk || files.length < 1}
-            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Wand2 className="size-4" />
-            Generate Voice + Plan (steps 5 &amp; 6)
-            <ArrowRight className="size-4" />
-          </button>
-        )}
+        <p className="mt-3 text-xs text-slate-500">
+          The reel will have <strong>exactly {files.length || "N"} scenes</strong> —
+          one per image, no repeats, in this order.
+        </p>
       </StepCard>
 
       {/* Step 5 + 6 — Plan + Motion */}
@@ -457,15 +490,35 @@ export default function CreateV0Page() {
         num={5}
         title="Audio Timeline + Motion Direction"
         icon={Wand2}
-        state={planReady ? "done" : hasProject ? "active" : "locked"}
+        state={
+          planReady
+            ? "done"
+            : voiceoverUrl && files.length >= 1
+              ? "active"
+              : "locked"
+        }
         badge="Steps 5 & 6 — combined"
       >
-        {!planReady ? (
-          <p className="text-sm text-slate-500">
-            After voice generates, ReelForge shows per-image: script segment,
-            duration, and a motion prompt you can edit.
-          </p>
-        ) : (
+        {!planReady && (
+          <>
+            <p className="text-sm text-slate-500">
+              Click below and Claude will split the script into{" "}
+              <strong>{files.length || "N"} segments</strong> (1 per image)
+              and write a motion prompt for each.
+            </p>
+            <button
+              type="button"
+              onClick={generateTimeline}
+              disabled={!!busy || !voiceoverUrl || files.length < 1}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Wand2 className="size-4" />
+              Generate timeline + motion
+              <ArrowRight className="size-4" />
+            </button>
+          </>
+        )}
+        {planReady && (
           <ScenePlan
             scenes={scenes!}
             motionPrompts={motionPrompts}

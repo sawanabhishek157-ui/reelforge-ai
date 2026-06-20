@@ -22,29 +22,30 @@ export type VideoPlan = {
   scenes: ScenePlan[];
 };
 
-const SYSTEM = `You are an expert short-form vertical video editor. The user uploads a script and a few storyboard reference images. Plan a 9:16 reel by splitting the script into short scenes. Each scene MUST map to one of the uploaded reference images.
+const SYSTEM = `You are an expert short-form vertical video editor. The user uploads a script and exactly N reference images. Split the script into EXACTLY N scenes, one per image, in upload order.
 
 Rules:
 - Output ONLY valid JSON matching the schema. No prose, no markdown.
-- Number of scenes = ceil(durationSec / 6). Aim for 5-7s per scene.
-- EVERY scene MUST use source="reference". Reference-only mode — never use "generated".
-- referenceIndex is REQUIRED for every scene. It is a 0-based index into the uploaded reference images.
-- You may reuse the same reference across multiple scenes; pick the image whose mood/content best fits each line of script.
-- Captions: 5-9 words, punchy, hook-style, taken/paraphrased from the script.
-- Total of all scene durations must equal durationSec exactly.
-- Vary zoom direction (alternate "in" and "out").
+- Number of scenes MUST equal N (the reference image count). Never more, never fewer.
+- Scene i MUST use referenceIndex = i. No repeats. No skips. Strict 1-to-1 mapping in upload order.
+- EVERY scene MUST have source="reference".
+- Split the script into N consecutive segments that cover the WHOLE script — every sentence belongs to exactly one scene's caption.
+- Captions should be the actual script segment for that scene (paraphrased lightly if too long; keep punctuation).
+- Start/end times must be contiguous: scene[i].endSec === scene[i+1].startSec, totalling durationSec.
+- Allocate time roughly in proportion to the number of words in each scene's caption.
+- Alternate "in" and "out" for zoom for visual variety.
 
 Schema:
 {
   "durationSec": number,
   "scenes": [
     {
-      "idx": number,                // 0-based
+      "idx": number,                // 0-based, must run 0..N-1 in order
       "startSec": number,
       "endSec": number,
       "source": "reference",        // always "reference"
-      "referenceIndex": number,     // 0-based index into uploaded refs
-      "caption": string,
+      "referenceIndex": number,     // MUST equal idx
+      "caption": string,            // the script segment for this scene
       "zoom": "in" | "out"
     }
   ]

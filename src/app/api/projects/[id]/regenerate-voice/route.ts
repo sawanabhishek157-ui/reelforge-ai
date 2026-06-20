@@ -47,12 +47,6 @@ export async function POST(
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
-  if (!project.planJson) {
-    return NextResponse.json(
-      { error: "No plan found. Generate the reel once first." },
-      { status: 400 },
-    );
-  }
 
   const newVoice = (body.voiceId ?? project.voiceId) as VoiceName;
 
@@ -68,8 +62,11 @@ export async function POST(
       );
     }
 
-    const plan = JSON.parse(project.planJson) as { durationSec: number };
-    if (actualSec > 0 && Math.abs(actualSec - plan.durationSec) > 0.5 && plan.durationSec > 0) {
+    // If we already have a plan, rescale its scene timings to the new audio
+    const plan = project.planJson
+      ? (JSON.parse(project.planJson) as { durationSec: number })
+      : null;
+    if (plan && actualSec > 0 && Math.abs(actualSec - plan.durationSec) > 0.5 && plan.durationSec > 0) {
       const ratio = actualSec / plan.durationSec;
       const scenes = db
         .prepare(

@@ -47,15 +47,12 @@ export async function POST(req: Request) {
     const durationSec = estimateDurationSec(script);
 
     const files = form.getAll("images").filter((f) => f instanceof File) as File[];
-    if (files.length < 1) {
+    // Images are now OPTIONAL at creation time — V0 flow generates voice
+    // first, then adds images via /api/projects/[id]/images. Old V1 flow
+    // still uploads them here.
+    if (files.length > 12) {
       return NextResponse.json(
-        { error: "Upload at least 1 reference image (3–8 recommended)." },
-        { status: 400 },
-      );
-    }
-    if (files.length > 8) {
-      return NextResponse.json(
-        { error: "Maximum 8 reference images." },
+        { error: "Maximum 12 reference images." },
         { status: 400 },
       );
     }

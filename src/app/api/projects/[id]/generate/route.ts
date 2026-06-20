@@ -82,20 +82,36 @@ export async function POST(
       motion: (typeof MOTIONS)[number];
     }[] = [];
 
-    for (const s of plan.scenes) {
-      // Reference-only: always reuse an uploaded image. Round-robin if Claude
-      // returned an out-of-range or missing index.
-      const fallbackIdx = s.idx % references.length;
-      const requested = s.referenceIndex ?? fallbackIdx;
-      const refIdx = Math.max(
-        0,
-        Math.min(requested, references.length - 1),
-      );
-      const imageUrl = references[refIdx];
-      // Cycle motions for variety: zoom-in → pan-right → zoom-out → pan-left
-      const motion = MOTIONS[s.idx % MOTIONS.length];
+    // STRICT 1:1 — exactly one scene per uploaded image, in upload order.
+    // If Claude returned more scenes, truncate. If fewer, pad by splitting
+    // the remaining time evenly across missing images.
+    const N = references.length;
+    const claudeScenes = plan.scenes.slice(0, N);
+    if (claudeScenes.length < N) {
+      // pad with placeholder scenes that share the last caption
+      const lastEnd = claudeScenes[claudeScenes.length - 1]?.endSec ?? 0;
+      const remaining = plan.durationSec - lastEnd;
+      const perPad = remaining / (N - claudeScenes.length);
+      for (let i = claudeScenes.length; i < N; i++) {
+        claudeScenes.push({
+          idx: i,
+          startSec: lastEnd + (i - claudeScenes.length) * perPad,
+          endSec: lastEnd + (i - claudeScenes.length + 1) * perPad,
+          source: "reference",
+          referenceIndex: i,
+          caption: claudeScenes[claudeScenes.length - 1]?.caption ?? "",
+          zoom: i % 2 ? "out" : "in",
+        });
+      }
+    }
+
+    for (let i = 0; i < N; i++) {
+      const s = claudeScenes[i];
+      // Force the 1:1 mapping no matter what Claude returned.
+      const imageUrl = references[i];
+      const motion = MOTIONS[i % MOTIONS.length];
       sceneRows.push({
-        idx: s.idx,
+        idx: i,
         startSec: s.startSec,
         endSec: s.endSec,
         source: "reference" as const,
