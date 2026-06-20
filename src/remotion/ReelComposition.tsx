@@ -12,6 +12,7 @@ import {
 } from "remotion";
 
 import { KineticCaption, pickCaptionStyle } from "./KineticCaption";
+import { CinemagraphRegion } from "./cinemagraph/Cinemagraph";
 import { Atmosphere } from "./overlays/Atmosphere";
 import { ColorGrade } from "./overlays/ColorGrade";
 import { FilmGrain } from "./overlays/FilmGrain";
@@ -73,6 +74,37 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
     [0, 1, 1, 0],
     { extrapolateRight: "clamp" },
   );
+
+  // Classic cinemagraph: frozen base image + one animated region (sky/water).
+  // Static overlays only (no drifting atmosphere/light-leak) so ONLY the region
+  // moves — the living-photo look.
+  if (scene.cinemagraph && (scene.cinemagraph.mode ?? "classic") === "classic") {
+    const mood = MOOD_CYCLE[sceneIndex % MOOD_CYCLE.length];
+    const captionStyle = scene.captionStyle ?? pickCaptionStyle(sceneIndex);
+    return (
+      <AbsoluteFill style={{ opacity, overflow: "hidden" }}>
+        <Img
+          src={toStatic(scene.imageUrl)}
+          style={{ width, height, objectFit: "cover" }}
+        />
+        <CinemagraphRegion
+          imageSrc={scene.imageUrl}
+          maskUrl={scene.cinemagraph.maskUrl}
+          region={scene.cinemagraph.region}
+        />
+        <ColorGrade mood={mood} intensity={0.85} />
+        <Vignette intensity={0.5} />
+        <FilmGrain intensity={0.03} />
+        {scene.caption ? (
+          <KineticCaption
+            caption={scene.caption}
+            durationInFrames={durationInFrames}
+            style={captionStyle}
+          />
+        ) : null}
+      </AbsoluteFill>
+    );
+  }
 
   if (scene.clipUrl) {
     // Alternate Ken Burns: even scenes zoom-in, odd scenes zoom-out

@@ -18,6 +18,16 @@ export type Scene = {
   depthMapUrl?: string;
   /** Pre-rendered parallax video clip. When set, used as the base layer instead of DepthParallax. */
   clipUrl?: string;
+  /**
+   * Cinemagraph: animate a single segmented region (sky/water) over a frozen
+   * base ("classic") or over the moving clip ("additive"). Mask is a
+   * white-on-black PNG of the region.
+   */
+  cinemagraph?: {
+    maskUrl: string;
+    region: "sky" | "water";
+    mode?: "classic" | "additive";
+  };
 };
 
 export type Plan = {
