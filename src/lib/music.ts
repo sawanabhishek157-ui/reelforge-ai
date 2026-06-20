@@ -4,11 +4,11 @@
  * Music files live in /public/music/<id>.mp3
  * If a file is missing the slot is greyed out in the UI.
  *
- * To fill the library quickly, grab royalty-free tracks from:
- *   - https://pixabay.com/music/  (CC0, no attribution required)
- *   - https://uppbeat.io/         (free for creators)
- *   - https://incompetech.com/    (Kevin MacLeod, CC-BY)
- * and save as /public/music/<id>.mp3
+ * Tracks are AI-generated (royalty-free) via Segmind Meta MusicGen Medium.
+ * To regenerate all 7 mood tracks run:
+ *   node --env-file=.env scripts/gen-music.mjs
+ *
+ * Generation code: src/lib/music-gen.ts
  */
 
 export type Mood = {

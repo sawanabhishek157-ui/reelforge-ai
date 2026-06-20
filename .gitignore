@@ -55,3 +55,10 @@ next-env.d.ts
 
 # User-supplied music — README stays, MP3s don't
 # /public/music/*.mp3   (placeholders are committed; replace freely)
+
+.codegraph/
+.claude/
+/data/
+/public/voice-ab/
+/public/voice-ab-demo/
+/public/seg-test/

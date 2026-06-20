@@ -11,6 +11,7 @@
     "@anthropic-ai/sdk": "^0.104.2",
     "@fal-ai/serverless-client": "^0.15.0",
     "@google/genai": "^2.9.0",
+    "@huggingface/transformers": "^4.2.0",
     "@remotion/bundler": "^4.0.479",
     "@remotion/cli": "^4.0.479",
     "@remotion/player": "^4.0.479",

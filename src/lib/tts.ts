@@ -7,6 +7,7 @@ import {
   planToEdgeChunks,
   planToElevenLabsScript,
 } from "./speech-plan";
+import { transliterateToDevanagari } from "./translit";
 
 /**
  * Dual-provider TTS:
@@ -101,26 +102,68 @@ const DEFAULT_VOICE_ID = "hi-IN-SwaraNeural";
 export type VoiceId = string;
 export type VoiceName = VoiceId; // back-compat alias
 
+export type GenerateVoiceoverOpts = {
+  /**
+   * When true (default for `lang === "hi"` voices), romanized Hinglish text is
+   * transliterated to Devanagari before being sent to Edge TTS.
+   * Set to false to disable transliteration explicitly.
+   */
+  transliterate?: boolean;
+};
+
 export async function generateVoiceover(
   text: string,
   outFilePath: string,
   voice: VoiceId = DEFAULT_VOICE_ID,
   plan?: SpeechPlan | null,
+  opts?: GenerateVoiceoverOpts,
 ) {
   const def =
     VOICES.find((v) => v.id === voice) ?? VOICES.find((v) => v.id === DEFAULT_VOICE_ID)!;
 
+  // Transliterate romanized Hinglish → Devanagari for Hindi Edge TTS voices.
+  // One API call covers the whole script; the result is used for both the plain
+  // and plan-driven Edge TTS paths.
+  const shouldTranslit = opts?.transliterate ?? def.lang === "hi";
+
   if (def.provider === "edge") {
     if (plan) {
-      await edgeTtsPlan(plan, outFilePath, def.id);
+      const resolvedPlan = shouldTranslit
+        ? await transliteratePlan(plan)
+        : plan;
+      await edgeTtsPlan(resolvedPlan, outFilePath, def.id);
     } else {
-      await edgeTts(text, outFilePath, def.id);
+      const resolvedText = shouldTranslit
+        ? await transliterateToDevanagari(text)
+        : text;
+      await edgeTts(resolvedText, outFilePath, def.id);
     }
   } else {
     const scripted = plan ? planToElevenLabsScript(plan) : text;
     await elevenLabsTts(scripted, outFilePath, def.id, plan ? "v3" : "multilingual");
   }
   return outFilePath;
+}
+
+/**
+ * Transliterate all sentence texts in a SpeechPlan to Devanagari in one
+ * batch call (joining them, converting, then splitting back by newline).
+ * This keeps the API calls at O(1) regardless of sentence count.
+ */
+async function transliteratePlan(plan: SpeechPlan): Promise<SpeechPlan> {
+  // Join sentences with a unique delimiter unlikely to appear in scripts.
+  const DELIM = "\n||||\n";
+  const joined = plan.sentences.map((s) => s.text).join(DELIM);
+  const converted = await transliterateToDevanagari(joined);
+  const parts = converted.split(DELIM);
+
+  return {
+    ...plan,
+    sentences: plan.sentences.map((s, i) => ({
+      ...s,
+      text: parts[i]?.trim() ?? s.text,
+    })),
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────
