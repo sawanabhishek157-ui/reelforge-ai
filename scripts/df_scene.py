@@ -34,37 +34,40 @@ class Strong(DepthScene):
 
     def update(self):
         s = self.state
-        t = self.tau          # normalized 0..1 progress
-        c = self.cycle + PHASE
-        s.height = HEIGHT
+        # Ease the linear progress so the move starts/ends gently (no jerk).
+        t = self.tau
+        e = t * t * (3.0 - 2.0 * t)   # smoothstep 0..1
         s.steady = 0.30
-        s.focus = 0.30
-        s.inpaint.limit = INPAINT  # suppress stretching at steep depth edges
+        s.isometric = 0.60
+        s.inpaint.limit = INPAINT
 
+        # ONE-DIRECTIONAL camera move (no circular/oscillating sweep — the reverse
+        # stroke is what made the morph wobble). The camera pushes FORWARD into the
+        # scene while drifting once in a single direction set by STYLE.
+        s.zoom = 1.0 - 0.10 * e            # continuous forward dolly (push-in)
+        # Parallax depth scales with AMP. AMP=0 -> ~0.05 (morph-free: rack focus
+        # only, people stay crisp). AMP>0 -> real parallax (use only on safe,
+        # person-free scenes; it morphs hard-edged subjects).
+        s.height = (0.05 + 0.55 * AMP) * (0.7 + 0.3 * e)
+
+        # direction of the single drift (degrees of a semicircle, never returning)
         if STYLE == "orbit":
-            s.zoom = 0.98 - 0.04 * t                     # gentle push
-            s.isometric = 0.50 * math.cos(c) + 0.75
-            s.offset = (AMP * math.sin(c + math.pi / 2.0), AMP * 0.5 * math.sin(c))
-        elif STYLE == "dolly":
-            s.zoom = 1.0 - 0.06 * math.sin(t * math.pi)  # in then settle (dolly)
-            s.isometric = 0.5 * (1.0 - math.cos(c))
-            s.offset = (AMP * 0.6 * math.sin(c), 0.0)
+            ang = math.pi * 0.25           # diagonal up-right
         elif STYLE == "vertical":
-            s.zoom = 1.0 - 0.05 * t                       # slow push-in
-            s.isometric = 0.60
-            s.offset = (AMP * 0.3 * math.sin(c), AMP * math.sin(c))
-        else:  # "zoomdrift" — Ken Burns push-in + horizontal parallax drift
-            s.zoom = 1.0 - 0.07 * t                       # clear, steady zoom-in
-            s.isometric = 0.60
-            s.offset = (AMP * math.sin(c), AMP * 0.3 * math.sin(c * 0.7))
+            ang = math.pi * 0.5            # upward
+        elif STYLE == "dolly":
+            ang = 0.0                      # pure push-in, minimal drift
+        else:                              # zoomdrift
+            ang = math.pi                  # leftward
+        drift = AMP * (0.5 if STYLE == "dolly" else 1.0)
+        s.offset = (drift * e * math.cos(ang), drift * 0.7 * e * math.sin(ang))
 
-        # Rack focus: depth-of-field pull from foreground to background over the
-        # clip. Reads as cinematic 3D depth with zero morphing.
+        # Rack focus: pull focus from foreground to background as we move in.
         if RACK:
-            s.blur.intensity = 0.2                        # gentle DoF — not a heavy ghosting blur
-            s.blur.start = 0.55
+            s.blur.intensity = 0.32
+            s.blur.start = 0.0
             s.blur.end = 1.0
-            s.focus = 0.20 + 0.45 * t                     # subtle near -> far focus pull
+            s.focus = 0.12 + 0.7 * e       # near -> far focus pull
 
 
 if __name__ == "__main__":
