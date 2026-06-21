@@ -15,6 +15,7 @@ import { getDb } from "./db";
 import { getProduct } from "./products";
 import { generateIdeas } from "./ideation";
 import { writeScript, buildStoryboard } from "./storyboard";
+import { generateSpeechPlan } from "./speech-plan";
 import { generateSceneAssets } from "./scene-images";
 import { generateVoiceover, audioDurationSec } from "./tts";
 import { generateParallaxClip } from "./depthflow";
@@ -292,7 +293,10 @@ async function runVoice(run: ContentRun): Promise<ContentRun> {
   const voiceOutAbs = runVoicePath(run.id);
 
   try {
-    await generateVoiceover(run.script, voiceOutAbs, run.storyboard.voiceId);
+    // Speech Performance Plan: Claude directs emotion / pace / pauses / emphasis
+    // per sentence, then the TTS engine performs it — far more human than flat TTS.
+    const speechPlan = await generateSpeechPlan(run.script);
+    await generateVoiceover(run.script, voiceOutAbs, run.storyboard.voiceId, speechPlan);
   } catch (err) {
     return markFailed(run, err);
   }
