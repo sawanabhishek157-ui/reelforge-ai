@@ -19,7 +19,7 @@ export async function POST(
       musicMood?: string;
     };
 
-    const run = approveStep(id, {
+    const run = await approveStep(id, {
       ...(body.ideaIndex != null && { ideaIndex: body.ideaIndex }),
       ...(body.musicMood != null && { musicMood: body.musicMood }),
     });

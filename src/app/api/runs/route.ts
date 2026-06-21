@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "productId is required" }, { status: 400 });
     }
 
-    const run = createRun(body.productId);
+    const run = await createRun(body.productId);
     return NextResponse.json({ run }, { status: 201 });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Failed to create run";

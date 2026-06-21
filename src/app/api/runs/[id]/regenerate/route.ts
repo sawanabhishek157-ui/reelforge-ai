@@ -16,7 +16,7 @@ export async function POST(
 
     const body = (await req.json()) as { feedback?: string };
 
-    const run = regenerateStep(id, body.feedback);
+    const run = await regenerateStep(id, body.feedback);
     return NextResponse.json({ run });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Failed to regenerate step";
