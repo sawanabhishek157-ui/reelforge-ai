@@ -68,6 +68,50 @@ function open() {
       error TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
+
+    -- Phase 2: per-product brand/content profile (grounding for the AI).
+    CREATE TABLE IF NOT EXISTS products (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT,
+      description TEXT,
+      audience TEXT,
+      voice_tone TEXT,
+      language TEXT DEFAULT 'english',   -- 'hinglish' | 'english'
+      content_pillars TEXT,              -- JSON string[]
+      dos TEXT,                          -- JSON string[]
+      donts TEXT,                        -- JSON string[]
+      example_posts TEXT,                -- JSON string[]
+      default_voice_id TEXT,
+      default_music_mood TEXT,
+      image_style TEXT,                  -- style descriptor for FLUX prompts
+      brand_assets TEXT,                 -- JSON string[] of public-relative paths
+      repo_url TEXT,                     -- reserved for future auto-grounding
+      store_url TEXT,
+      site_url TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Phase 2: an agentic content run walks the gated step pipeline.
+    CREATE TABLE IF NOT EXISTS content_runs (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      title TEXT,
+      step TEXT NOT NULL DEFAULT 'ideate',   -- ideate|script|storyboard|images|voice|music|assemble|done
+      status TEXT NOT NULL DEFAULT 'awaiting_approval', -- generating|awaiting_approval|approved|failed|done
+      idea_json TEXT,        -- { chosen, options[] }
+      script TEXT,
+      plan_json TEXT,        -- the Remotion Plan (scenes) being assembled
+      voiceover_path TEXT,
+      music_mood TEXT,
+      output_path TEXT,
+      step_state_json TEXT,  -- { step: 'pending'|'approved' }
+      feedback_json TEXT,    -- { step: [feedback strings] }
+      error TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_runs_product ON content_runs(product_id, created_at);
   `);
 
   // Idempotent migrations

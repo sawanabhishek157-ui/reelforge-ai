@@ -1,21 +1,38 @@
 /**
  * DepthFlow parallax clip generator.
- * Wraps the `depthflow` CLI to produce an MP4 with parallax motion
- * from a still image + depth map pair.
+ * Drives df_scene.py via the DepthFlow virtual-env Python interpreter to
+ * produce an animated MP4 with strong parallax motion from a still image +
+ * depth map pair.
+ *
+ * The bare `depthflow` CLI renders a static frame; the animated parallax sweep
+ * lives exclusively in scripts/df_scene.py called through the venv Python.
  *
  * Node-only — do not import this file from Remotion components.
  */
 
 import { execFile } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
-const DEPTHFLOW_BIN = path.join(
-  process.env.HOME ?? "/",
+import type { MotionStyle } from "./types";
+
+/** Path to the DepthFlow virtual-env Python interpreter (installed via uv). */
+const DEPTHFLOW_PY = path.join(
+  os.homedir(),
   ".local",
-  "bin",
+  "share",
+  "uv",
+  "tools",
   "depthflow",
+  "bin",
+  "python",
 );
+
+/** Resolved at runtime so it works regardless of cwd at import time. */
+function sceneScriptPath(): string {
+  return path.join(process.cwd(), "scripts", "df_scene.py");
+}
 
 export interface GenerateParallaxClipOpts {
   imageAbs: string;
@@ -26,16 +43,32 @@ export interface GenerateParallaxClipOpts {
   width?: number;
   height?: number;
   /**
-   * DepthFlow parallax intensity (`state --height`). Default 0.2 is too subtle;
-   * 0.4 gives a strong 3D pop on images with a clear foreground subject.
-   * Pushing past ~0.5 starts to stretch flat/low-depth images.
+   * DepthFlow parallax intensity (DF_AMP env var). 0.5 gives a strong 3D pop
+   * on images with a clear foreground subject. Values above 0.6 can introduce
+   * edge-stretching artifacts on flat images.
    */
   intensity?: number;
+  /**
+   * DepthFlow height scale (DF_HEIGHT env var). Controls vertical parallax
+   * displacement. Default 0.35 matches the demo preset.
+   */
+  heightScale?: number;
+  /**
+   * One of the motion presets defined in df_scene.py (DF_STYLE env var).
+   * Defaults to "zoomdrift".
+   */
+  style?: MotionStyle;
+  /**
+   * Phase offset in radians for the parallax animation cycle (DF_PHASE env
+   * var). Stagger adjacent scenes by ~1.3 to avoid identical motion rhythm.
+   */
+  phase?: number;
 }
 
 /**
- * Generate a parallax MP4 clip using the DepthFlow CLI.
+ * Generate an animated parallax MP4 clip via scripts/df_scene.py.
  *
+ * - Invokes the DepthFlow virtual-env Python (NOT the bare `depthflow` CLI).
  * - Skips generation if outAbs already exists and is newer than the source image.
  * - Rejects with a descriptive error (including stderr tail) on non-zero exit.
  * - Uses --no-turbo to avoid macOS segfaults.
@@ -53,7 +86,10 @@ export async function generateParallaxClip(
     fps = 30,
     width = 1080,
     height = 1920,
-    intensity = 0.4,
+    intensity = 0.5,
+    heightScale = 0.35,
+    style = "zoomdrift",
+    phase = 0,
   } = opts;
 
   // Cache: skip if output is newer than source image.
@@ -67,9 +103,9 @@ export async function generateParallaxClip(
 
   fs.mkdirSync(path.dirname(outAbs), { recursive: true });
 
+  // df_scene.py CLI: <script> input -i <img> -d <depth> main -o <out> -t <sec> -f <fps> -w <w> -h <h> --no-turbo
   const args = [
-    "state",
-    "--height", String(intensity),
+    sceneScriptPath(),
     "input",
     "-i", imageAbs,
     "-d", depthAbs,
@@ -82,17 +118,21 @@ export async function generateParallaxClip(
     "--no-turbo",
   ];
 
-  // Extend PATH so the CLI and its dependencies are found.
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    PATH: `${path.join(process.env.HOME ?? "/", ".local", "bin")}:${process.env.PATH ?? ""}`,
+    PATH: `${path.join(os.homedir(), ".local", "bin")}:${process.env.PATH ?? ""}`,
+    DF_AMP: String(intensity),
+    DF_HEIGHT: String(heightScale),
+    DF_INPAINT: "0.0",
+    DF_STYLE: style,
+    DF_PHASE: phase.toFixed(2),
   };
 
   await new Promise<void>((resolve, reject) => {
     let stderrBuf = "";
 
     const child = execFile(
-      DEPTHFLOW_BIN,
+      DEPTHFLOW_PY,
       args,
       { env, maxBuffer: 10 * 1024 * 1024 },
       (error, _stdout, stderr) => {
@@ -101,7 +141,7 @@ export async function generateParallaxClip(
           const tail = stderrBuf.split("\n").slice(-20).join("\n");
           reject(
             new Error(
-              `depthflow exited with code ${error.code ?? "?"}\n--- stderr tail ---\n${tail}`,
+              `df_scene.py exited with code ${error.code ?? "?"}\n--- stderr tail ---\n${tail}`,
             ),
           );
         } else {
