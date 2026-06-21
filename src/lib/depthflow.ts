@@ -86,7 +86,7 @@ export async function generateParallaxClip(
     fps = 30,
     width = 1080,
     height = 1920,
-    intensity = 0.5,
+    intensity = 0.45,
     heightScale = 0.35,
     style = "zoomdrift",
     phase = 0,

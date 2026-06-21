@@ -81,17 +81,24 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
   if (scene.cinemagraph && (scene.cinemagraph.mode ?? "classic") === "classic") {
     const mood = MOOD_CYCLE[sceneIndex % MOOD_CYCLE.length];
     const captionStyle = scene.captionStyle ?? pickCaptionStyle(sceneIndex);
+    // Slow Ken Burns push on the whole frame so the scene reads as moving, while
+    // the masked region (sky/water) animates on top.
+    const cineScale = interpolate(frame, [0, durationInFrames], [1.04, 1.16], {
+      extrapolateRight: "clamp",
+    });
     return (
       <AbsoluteFill style={{ opacity, overflow: "hidden" }}>
-        <Img
-          src={toStatic(scene.imageUrl)}
-          style={{ width, height, objectFit: "cover" }}
-        />
-        <CinemagraphRegion
-          imageSrc={scene.imageUrl}
-          maskUrl={scene.cinemagraph.maskUrl}
-          region={scene.cinemagraph.region}
-        />
+        <AbsoluteFill style={{ transform: `scale(${cineScale})` }}>
+          <Img
+            src={toStatic(scene.imageUrl)}
+            style={{ width, height, objectFit: "cover" }}
+          />
+          <CinemagraphRegion
+            imageSrc={scene.imageUrl}
+            maskUrl={scene.cinemagraph.maskUrl}
+            region={scene.cinemagraph.region}
+          />
+        </AbsoluteFill>
         <ColorGrade mood={mood} intensity={0.85} />
         <Vignette intensity={0.5} />
         <FilmGrain intensity={0.03} />
@@ -112,15 +119,15 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
     const kbScale = interpolate(
       frame,
       [0, durationInFrames],
-      isEven ? [1.0, 1.12] : [1.12, 1.0],
+      isEven ? [1.04, 1.24] : [1.24, 1.04],
       { extrapolateRight: "clamp" },
     );
 
-    // Tiny horizontal pan, direction varies by scene
+    // Horizontal pan, direction varies by scene (pronounced for visible motion)
     const panX = interpolate(
       frame,
       [0, durationInFrames],
-      [0, isEven ? 10 : -10],
+      [0, isEven ? 28 : -28],
       { extrapolateRight: "clamp" },
     );
 
