@@ -101,6 +101,7 @@ function open() {
       status TEXT NOT NULL DEFAULT 'awaiting_approval', -- generating|awaiting_approval|approved|failed|done
       idea_json TEXT,        -- { chosen, options[] }
       script TEXT,
+      storyboard_json TEXT,  -- the scene-level storyboard (pre image-gen)
       plan_json TEXT,        -- the Remotion Plan (scenes) being assembled
       voiceover_path TEXT,
       music_mood TEXT,
@@ -121,6 +122,11 @@ function open() {
   }
   if (!cols.some((c) => c.name === "speech_plan_json")) {
     conn.exec(`ALTER TABLE projects ADD COLUMN speech_plan_json TEXT`);
+  }
+
+  const runCols = conn.prepare(`PRAGMA table_info(content_runs)`).all() as { name: string }[];
+  if (runCols.length && !runCols.some((c) => c.name === "storyboard_json")) {
+    conn.exec(`ALTER TABLE content_runs ADD COLUMN storyboard_json TEXT`);
   }
 
   return conn;

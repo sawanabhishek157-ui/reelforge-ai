@@ -37,6 +37,7 @@ interface RunRow {
   status: string;
   idea_json: string | null;
   script: string | null;
+  storyboard_json: string | null;
   plan_json: string | null;
   voiceover_path: string | null;
   music_mood: string | null;
@@ -67,6 +68,9 @@ function rowToRun(row: RunRow): ContentRun {
         }
       : {}),
     ...(row.script != null && { script: row.script }),
+    ...(row.storyboard_json != null
+      ? { storyboard: JSON.parse(row.storyboard_json) as Storyboard }
+      : {}),
     ...(row.plan_json != null
       ? { plan: JSON.parse(row.plan_json) as Plan }
       : {}),
@@ -95,11 +99,11 @@ function rowToRun(row: RunRow): ContentRun {
 function saveRun(run: ContentRun): void {
   getDb().prepare(`
     INSERT OR REPLACE INTO content_runs
-      (id, product_id, title, step, status, idea_json, script, plan_json,
+      (id, product_id, title, step, status, idea_json, script, storyboard_json, plan_json,
        voiceover_path, music_mood, output_path, step_state_json, feedback_json,
        error, created_at)
     VALUES
-      (@id, @product_id, @title, @step, @status, @idea_json, @script, @plan_json,
+      (@id, @product_id, @title, @step, @status, @idea_json, @script, @storyboard_json, @plan_json,
        @voiceover_path, @music_mood, @output_path, @step_state_json, @feedback_json,
        @error, @created_at)
   `).run({
@@ -110,6 +114,7 @@ function saveRun(run: ContentRun): void {
     status: run.status,
     idea_json: run.idea != null ? JSON.stringify(run.idea) : null,
     script: run.script ?? null,
+    storyboard_json: run.storyboard != null ? JSON.stringify(run.storyboard) : null,
     plan_json: run.plan != null ? JSON.stringify(run.plan) : null,
     voiceover_path: run.voiceoverPath ?? null,
     music_mood: run.musicMood ?? null,
