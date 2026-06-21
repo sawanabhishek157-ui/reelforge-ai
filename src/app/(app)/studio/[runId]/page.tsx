@@ -56,10 +56,10 @@ export default function RunPage() {
 
   const fetchRun = useCallback(async () => {
     try {
-      const data = (await ensureOk(await fetch(`/api/runs/${runId}`))) as ContentRun;
-      setRun(data);
+      const data = (await ensureOk(await fetch(`/api/runs/${runId}`))) as { run: ContentRun };
+      setRun(data.run);
       setError(null);
-      return data;
+      return data.run;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load run");
       return null;
@@ -111,10 +111,10 @@ export default function RunPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         }),
-      )) as ContentRun;
+      )) as { run: ContentRun };
 
-      setRun(data);
-      if (data.status === "generating") {
+      setRun(data.run);
+      if (data.run.status === "generating") {
         schedulePolling();
       }
     } catch (err: unknown) {
@@ -135,9 +135,9 @@ export default function RunPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ feedback: feedback || undefined }),
         }),
-      )) as ContentRun;
+      )) as { run: ContentRun };
 
-      setRun(data);
+      setRun(data.run);
       schedulePolling();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Regenerate failed");
@@ -157,9 +157,9 @@ export default function RunPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ script: scriptDraft }),
         }),
-      )) as ContentRun;
+      )) as { run: ContentRun };
 
-      setRun(data);
+      setRun(data.run);
       setEditingScript(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Edit failed");
@@ -179,9 +179,9 @@ export default function RunPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ caption: captionDrafts.join("\n---\n") }),
         }),
-      )) as ContentRun;
+      )) as { run: ContentRun };
 
-      setRun(data);
+      setRun(data.run);
       setEditingCaptions(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Edit failed");

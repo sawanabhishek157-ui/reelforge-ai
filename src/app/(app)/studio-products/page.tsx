@@ -185,13 +185,14 @@ export default function StudioProductsPage() {
           .filter(Boolean),
       };
 
-      const data = (await ensureOk(
+      const resp = (await ensureOk(
         await fetch("/api/products/draft", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         }),
-      )) as Partial<ProductInput>;
+      )) as { product?: Partial<ProductInput> };
+      const data = resp.product ?? {};
 
       dispatch({
         type: "UPDATE_STEP2",
@@ -239,15 +240,15 @@ export default function StudioProductsPage() {
         brandAssets: [],
       };
 
-      const data = (await ensureOk(
+      const resp = (await ensureOk(
         await fetch("/api/products", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         }),
-      )) as Product;
+      )) as { product: Product };
 
-      dispatch({ type: "PRODUCT_ADDED", product: data });
+      dispatch({ type: "PRODUCT_ADDED", product: resp.product });
     } catch (err: unknown) {
       dispatch({
         type: "SET_ERROR",

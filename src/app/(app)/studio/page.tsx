@@ -47,9 +47,9 @@ export default function StudioPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ productId: selectedId }),
         }),
-      )) as ContentRun;
+      )) as { run: ContentRun };
 
-      router.push(`/studio/${data.id}`);
+      router.push(`/studio/${data.run.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to start run");
       setStarting(false);
