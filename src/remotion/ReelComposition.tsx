@@ -13,6 +13,7 @@ import {
 
 import { KineticCaption, pickCaptionStyle } from "./KineticCaption";
 import { CinemagraphRegion } from "./cinemagraph/Cinemagraph";
+import { MotionGraphicsLayer } from "./motiongraphics";
 import { Atmosphere } from "./overlays/Atmosphere";
 import { ColorGrade } from "./overlays/ColorGrade";
 import { FilmGrain } from "./overlays/FilmGrain";
@@ -100,6 +101,7 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
           />
         </AbsoluteFill>
         <ColorGrade mood={mood} intensity={0.85} />
+        <MotionGraphicsLayer names={scene.motionGraphics} sceneIndex={sceneIndex} />
         <Vignette intensity={0.5} />
         <FilmGrain intensity={0.03} />
         {scene.caption ? (
@@ -165,6 +167,9 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
         {/* Layer 5: Light leak — only every 3rd scene (0, 3, 6, ...) */}
         {sceneIndex % 3 === 0 ? <LightLeak intensity={0.3} /> : null}
 
+        {/* Astrology motion graphics — real animated motion (rotate/orbit/twinkle/flow) */}
+        <MotionGraphicsLayer names={scene.motionGraphics} sceneIndex={sceneIndex} />
+
         {/* Layer 6: Film grain — always, very subtle */}
         <FilmGrain intensity={0.035} />
 
@@ -195,6 +200,7 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
           transform: `translate(${x}%, ${y}%) scale(${scale})`,
         }}
       />
+      <MotionGraphicsLayer names={scene.motionGraphics} sceneIndex={sceneIndex} />
       {scene.caption ? (
         <KineticCaption
           caption={scene.caption}

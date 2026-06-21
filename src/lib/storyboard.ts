@@ -107,6 +107,7 @@ Rules:
 - imagePrompt: a FLUX text-to-image prompt COMPOSED FOR STRONG DEPTH so 2.5D parallax pops. It MUST have THREE distinct depth planes: (a) a clear foreground element/subject, (b) a midground, and (c) a DISTANT receding background (a far horizon, deep landscape, corridor, or scene receding into the distance). Use WIDE or MEDIUM shots — the subject must NOT fill the frame; explicitly AVOID tight close-up portraits/faces (they are flat and do not parallax). Phrase it cinematically, e.g. "...in the foreground, ... in the midground, with ... stretching into the far distance behind." Incorporate product.imageStyle if provided. Specify lighting and mood. Avoid flat silhouettes, frame-filling close-ups, and cluttered compositions.
 - motionStyle: one of "zoomdrift" | "orbit" | "dolly" | "vertical". Vary across scenes — do not repeat the same style consecutively if avoidable.
 - cinemagraph: {"region": "sky"} or {"region": "water"} ONLY when the imagePrompt would naturally feature a prominent sky or prominent body of water. Otherwise null.
+- motionGraphics: array of 1-2 astrology overlay names that add real animated motion, chosen to fit the scene. Allowed: "starField" (twinkling drifting stars — for night/cosmic scenes), "cosmicDust" (flowing energy/air particles), "zodiacWheel" (rotating zodiac ring — for astrology/destiny beats), "orbitingBodies" (orbiting planets — for cosmic/fate themes), "constellationLines" (drawing constellations — for star/connection themes), "lightRays" (rotating divine light — for spiritual/reveal moments). Pick tastefully (usually 1-2) and vary across scenes. Use [] only if truly none fit.
 - durationSec: integer 3-7. Proportional to caption word count. The sum of all scene durations should approximate the total spoken duration.
 - musicMood: a single mood id from the allowed list that best fits the overall idea and emotional arc.
 - voiceId: the voice id to use for narration.
@@ -120,6 +121,7 @@ Output ONLY valid JSON. No prose, no markdown, no code fences. Exact schema:
       "imagePrompt": string,
       "motionStyle": "zoomdrift" | "orbit" | "dolly" | "vertical",
       "cinemagraph": {"region": "sky" | "water"} | null,
+      "motionGraphics": string[],
       "durationSec": number
     }
   ],
@@ -222,7 +224,12 @@ function validateScene(raw: unknown, idx: number): StoryboardScene {
   const rawDur = typeof s.durationSec === "number" ? s.durationSec : 4;
   const durationSec = Math.min(7, Math.max(3, Math.round(rawDur)));
 
-  return { caption, imagePrompt, motionStyle, cinemagraph, durationSec };
+  const MG = ["starField", "cosmicDust", "zodiacWheel", "orbitingBodies", "constellationLines", "lightRays"];
+  const motionGraphics = Array.isArray(s.motionGraphics)
+    ? (s.motionGraphics as unknown[]).filter((m): m is string => typeof m === "string" && MG.includes(m)).slice(0, 3)
+    : [];
+
+  return { caption, imagePrompt, motionStyle, cinemagraph, motionGraphics, durationSec };
 }
 
 function validateStoryboard(raw: unknown, fallbackVoiceId: string): Storyboard {

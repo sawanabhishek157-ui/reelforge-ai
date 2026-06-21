@@ -70,6 +70,8 @@ export interface StoryboardScene {
   motionStyle: MotionStyle;
   /** When the scene has a strong sky/water region, animate it as a cinemagraph. */
   cinemagraph?: { region: "sky" | "water" } | null;
+  /** Astrology motion-graphics overlays for this scene (starField, zodiacWheel, etc.). */
+  motionGraphics?: string[];
   durationSec: number;
 }
 

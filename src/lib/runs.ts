@@ -252,6 +252,9 @@ async function runImages(run: ContentRun): Promise<ContentRun> {
       motion: "zoom-in",
       motionPreset: sbScene.motionStyle,
       depthMapUrl: asset.depthMapUrl,
+      ...(sbScene.motionGraphics && sbScene.motionGraphics.length > 0
+        ? { motionGraphics: sbScene.motionGraphics }
+        : {}),
       ...(asset.cinemagraph != null
         ? {
             cinemagraph: {
