@@ -64,3 +64,8 @@ next-env.d.ts
 /public/seg-test/
 /public/cine-demo/
 /public/runs/
+
+# Local TTS microservice — 9GB venv + Python caches stay local (rebuild via uv sync)
+/scripts/tts-service/.venv/
+**/__pycache__/
+*.pyc
