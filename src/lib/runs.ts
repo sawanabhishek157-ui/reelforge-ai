@@ -13,6 +13,10 @@ import fs from "node:fs";
 
 import { getDb } from "./db";
 import { getProduct } from "./products";
+import { brandTheme } from "../remotion/effects/brands";
+
+/** Branded outro length appended after the scenes (must match ReelComposition). */
+const OUTRO_SEC = 3.5;
 import { generateIdeas } from "./ideation";
 import { writeScript, buildStoryboard } from "./storyboard";
 import { generateSpeechPlan } from "./speech-plan";
@@ -238,6 +242,11 @@ async function runImages(run: ContentRun): Promise<ContentRun> {
     return markFailed(run, err);
   }
 
+  // Brand palette tints the effects to match product identity.
+  const product = getProduct(run.productId);
+  const brand = brandTheme(product?.slug);
+  const palette = brand.palette;
+
   let cumSec = 0;
   const scenes: Scene[] = run.storyboard.scenes.map((sbScene, i) => {
     const asset = assets[i];
@@ -256,6 +265,10 @@ async function runImages(run: ContentRun): Promise<ContentRun> {
       ...(sbScene.motionGraphics && sbScene.motionGraphics.length > 0
         ? { motionGraphics: sbScene.motionGraphics }
         : {}),
+      ...(sbScene.effects && sbScene.effects.length > 0
+        ? { effects: sbScene.effects, palette }
+        : {}),
+      ...(asset.subjectMaskUrl != null ? { subjectMaskUrl: asset.subjectMaskUrl } : {}),
       ...(asset.cinemagraph != null
         ? {
             cinemagraph: {
@@ -276,6 +289,12 @@ async function runImages(run: ContentRun): Promise<ContentRun> {
     width: 1080,
     height: 1920,
     scenes,
+    // Reusable branded sign-off, themed to the product.
+    outro: {
+      brandName: product?.name ?? "ReelForge",
+      palette: brand.palette,
+      ...(brand.tagline ? { tagline: brand.tagline } : {}),
+    },
   };
 
   const updated: ContentRun = { ...run, plan, status: "awaiting_approval" };
@@ -318,7 +337,8 @@ async function runVoice(run: ContentRun): Promise<ContentRun> {
 
   const plan: Plan = {
     ...run.plan,
-    durationSec: +actualDuration.toFixed(3),
+    // Scenes span [0, actualDuration]; the branded outro plays after that.
+    durationSec: +(actualDuration + OUTRO_SEC).toFixed(3),
     voiceoverUrl: toPublicUrl(voiceOutAbs),
     scenes: rescaledScenes,
   };

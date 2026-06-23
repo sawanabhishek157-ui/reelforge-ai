@@ -20,6 +20,13 @@ export type Scene = {
   clipUrl?: string;
   /** Astrology motion-graphics overlays to composite (starField, zodiacWheel, ...). */
   motionGraphics?: string[];
+  /** Reusable VFX effects to composite (lightning, leaves, embers, godRays). */
+  effects?: string[];
+  /** Brand color palette — tints the effects to match product identity. */
+  palette?: string[];
+  /** White-on-black mask of the foreground subject. When set, the scene renders
+   *  through LayeredScene with the subject on its own plane (effects behind it). */
+  subjectMaskUrl?: string;
   /**
    * Cinemagraph: animate a single segmented region (sky/water) over a frozen
    * base ("classic") or over the moving clip ("additive"). Mask is a
@@ -38,4 +45,10 @@ export type Plan = {
   width?: number;
   height?: number;
   scenes: Scene[];
+  /** Reusable branded sign-off appended after the scenes. */
+  outro?: {
+    brandName: string;
+    palette?: string[];
+    tagline?: string;
+  };
 };

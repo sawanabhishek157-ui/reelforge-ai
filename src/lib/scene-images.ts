@@ -13,6 +13,7 @@ import path from "node:path";
 import { generateImage } from "./segmind";
 import { generateDepthMap, depthMapPathFor } from "./depth";
 import { segmentRegion, maskPathFor } from "./segment";
+import { generateSubjectMask, subjectMaskPathFor } from "./matte";
 import { PUBLIC_DIR, toPublicUrl } from "./paths";
 
 import type { Storyboard } from "./types";
@@ -30,6 +31,8 @@ export interface SceneAsset {
   imageUrl: string;
   depthMapUrl: string;
   cinemagraph?: CinemagraphAsset;
+  /** White-on-black subject mask — enables the depth-layered compositor. */
+  subjectMaskUrl?: string;
 }
 
 export interface GenerateSceneAssetsOptions {
@@ -43,6 +46,9 @@ export interface GenerateSceneAssetsOptions {
 
 /** Minimum coverage fraction below which we omit the cinemagraph asset. */
 const MIN_CINEMAGRAPH_COVERAGE = 0.12;
+
+/** Minimum subject coverage below which we skip the depth-layered subject plane. */
+const MIN_SUBJECT_COVERAGE = 0.04;
 
 /**
  * Round a dimension up to the nearest multiple of 64 (Segmind / FLUX
@@ -165,12 +171,32 @@ export async function generateSceneAssets(
     }
 
     // ------------------------------------------------------------------
+    // Step 4: Subject mask (optional) — enables the depth-layered compositor.
+    // Non-fatal: if it fails or finds no subject, the scene renders flat.
+    // ------------------------------------------------------------------
+    let subjectMaskUrl: string | undefined;
+
+    try {
+      const subjectAbs = subjectMaskPathFor(imageAbs);
+      // Pass the depth map so no-person scenes fall back to a depth foreground split.
+      const result = await generateSubjectMask(imageAbs, subjectAbs, depthAbs);
+      if (result.maskPath && result.coverage >= MIN_SUBJECT_COVERAGE) {
+        subjectMaskUrl = toPublicUrl(result.maskPath);
+      }
+    } catch (err) {
+      console.warn(
+        `Scene ${i}: subject matting skipped — ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    // ------------------------------------------------------------------
     // Collect asset URLs
     // ------------------------------------------------------------------
     const asset: SceneAsset = {
       imageUrl: toPublicUrl(imageAbs),
       depthMapUrl: toPublicUrl(depthAbs),
       ...(cinemagraph !== undefined ? { cinemagraph } : {}),
+      ...(subjectMaskUrl !== undefined ? { subjectMaskUrl } : {}),
     };
 
     assets.push(asset);

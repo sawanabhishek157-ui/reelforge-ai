@@ -7,6 +7,7 @@ import { ZodiacWheel } from "./ZodiacWheel";
 import { OrbitingBodies } from "./OrbitingBodies";
 import { ConstellationLines } from "./ConstellationLines";
 import { LightRays } from "./LightRays";
+import { StaggerIn } from "../effects/Stagger";
 
 /** Names the storyboard director can assign to a scene. */
 export type MotionGraphicName =
@@ -60,7 +61,9 @@ export const MotionGraphicsLayer: React.FC<{
   return (
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       {valid.map((n, i) => (
-        <React.Fragment key={n}>{render(n, sceneIndex * 13 + i * 7)}</React.Fragment>
+        <StaggerIn key={n} order={i} baseDelay={0}>
+          {render(n, sceneIndex * 13 + i * 7)}
+        </StaggerIn>
       ))}
     </AbsoluteFill>
   );

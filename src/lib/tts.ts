@@ -1,6 +1,7 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 
 import type { EdgeChunk, SpeechPlan } from "./speech-plan";
 import {
@@ -16,7 +17,7 @@ import { transliterateToDevanagari } from "./translit";
  *                  Used for Hindi (hi-IN) + bonus extra languages.
  */
 
-type Provider = "elevenlabs" | "edge";
+type Provider = "elevenlabs" | "edge" | "local";
 
 type VoiceDef = {
   id: string;
@@ -25,7 +26,14 @@ type VoiceDef = {
   style: string;
   lang: "en" | "hi";
   provider: Provider;
+  /** local-provider only: which engine + speaker on the local TTS service. */
+  engine?: "kokoro" | "parler";
+  speaker?: string;
+  /** parler only: free-text voice description (tone). */
+  description?: string;
 };
+
+const LOCAL_TTS_URL = process.env.TTS_SERVICE_URL ?? "http://localhost:8100";
 
 export const VOICES: VoiceDef[] = [
   // ── Hindi (FREE — Microsoft Edge TTS) ────────────────────────
@@ -95,6 +103,53 @@ export const VOICES: VoiceDef[] = [
     lang: "en",
     provider: "elevenlabs",
   },
+  // ── Local free engines (Kokoro / Parler) via the local TTS service ──
+  {
+    id: "parler-mystic-f",
+    name: "Veda",
+    label: "Veda — deep mysterious Hindi female (FREE, local Parler)",
+    style: "Deep, mysterious, mystical",
+    lang: "hi",
+    provider: "local",
+    engine: "parler",
+    speaker: "Divya",
+    description:
+      "Divya speaks in a deep, slow and mysterious voice with a calm, mystical tone. " +
+      "Very clear, intimate and close, with a quiet, slightly reverberant atmosphere.",
+  },
+  {
+    id: "parler-mystic-m",
+    name: "Rohit",
+    label: "Rohit — deep mysterious Hindi male (FREE, local Parler)",
+    style: "Deep, mysterious",
+    lang: "hi",
+    provider: "local",
+    engine: "parler",
+    speaker: "Rohit",
+    description:
+      "Rohit speaks in a deep, slow and mysterious voice with a calm, mystical tone. " +
+      "Very clear, intimate and close, with a quiet, slightly reverberant atmosphere.",
+  },
+  {
+    id: "kokoro-f",
+    name: "Priya",
+    label: "Priya — natural Hindi female (FREE, local Kokoro)",
+    style: "Clean, human, natural",
+    lang: "hi",
+    provider: "local",
+    engine: "kokoro",
+    speaker: "hf_beta",
+  },
+  {
+    id: "kokoro-m",
+    name: "Arjun",
+    label: "Arjun — natural Hindi male (FREE, local Kokoro)",
+    style: "Clean, human, natural",
+    lang: "hi",
+    provider: "local",
+    engine: "kokoro",
+    speaker: "hm_psi",
+  },
 ];
 
 const DEFAULT_VOICE_ID = "hi-IN-SwaraNeural";
@@ -126,6 +181,13 @@ export async function generateVoiceover(
   // and plan-driven Edge TTS paths.
   const shouldTranslit = opts?.transliterate ?? def.lang === "hi";
 
+  if (def.provider === "local") {
+    // Local engines need native Devanagari (their own transliterator is disabled).
+    const resolvedText = shouldTranslit ? await transliterateToDevanagari(text) : text;
+    await localTts(resolvedText, outFilePath, def);
+    return outFilePath;
+  }
+
   if (def.provider === "edge") {
     if (plan) {
       const resolvedPlan = shouldTranslit
@@ -143,6 +205,38 @@ export async function generateVoiceover(
     await elevenLabsTts(scripted, outFilePath, def.id, plan ? "v3" : "multilingual");
   }
   return outFilePath;
+}
+
+/**
+ * Local free TTS (Kokoro / Parler) via the on-machine service. Returns WAV;
+ * we transcode to MP3 at outFilePath. The script must already be Devanagari.
+ */
+async function localTts(text: string, outFilePath: string, def: VoiceDef): Promise<void> {
+  const body = {
+    engine: def.engine ?? "kokoro",
+    text,
+    speaker: def.speaker,
+    description: def.description,
+  };
+  const res = await fetch(`${LOCAL_TTS_URL}/tts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(300000),
+  });
+  if (!res.ok) {
+    throw new Error(`local TTS ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+  const wav = Buffer.from(await res.arrayBuffer());
+  const tmp = path.join(os.tmpdir(), `local-tts-${Date.now()}.wav`);
+  fs.writeFileSync(tmp, wav);
+  try {
+    execFileSync("ffmpeg", ["-y", "-i", tmp, "-c:a", "libmp3lame", "-b:a", "128k", outFilePath], {
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+  } finally {
+    fs.unlinkSync(tmp);
+  }
 }
 
 /**

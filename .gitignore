@@ -69,3 +69,7 @@ next-env.d.ts
 /scripts/tts-service/.venv/
 **/__pycache__/
 *.pyc
+
+# Test render scratch (large mp4s, regenerated on demand)
+/public/effects-test/
+/public/depth-test/

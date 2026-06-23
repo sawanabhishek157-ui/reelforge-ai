@@ -72,6 +72,8 @@ export interface StoryboardScene {
   cinemagraph?: { region: "sky" | "water" } | null;
   /** Astrology motion-graphics overlays for this scene (starField, zodiacWheel, etc.). */
   motionGraphics?: string[];
+  /** Reusable VFX effects for this scene (lightning, leaves, embers, godRays). */
+  effects?: string[];
   durationSec: number;
 }
 

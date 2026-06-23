@@ -13,7 +13,10 @@ import {
 
 import { KineticCaption, pickCaptionStyle } from "./KineticCaption";
 import { CinemagraphRegion } from "./cinemagraph/Cinemagraph";
+import { LayeredScene } from "./LayeredScene";
+import { Outro } from "./Outro";
 import { MotionGraphicsLayer } from "./motiongraphics";
+import { EffectsLayer } from "./effects";
 import { Atmosphere } from "./overlays/Atmosphere";
 import { ColorGrade } from "./overlays/ColorGrade";
 import { FilmGrain } from "./overlays/FilmGrain";
@@ -22,6 +25,7 @@ import { Vignette } from "./overlays/Vignette";
 import type { Motion, Plan, Scene } from "./types";
 
 const FPS = 30;
+const OUTRO_SEC = 3.5;
 
 // Moods cycled per scene index for visual variety
 const MOOD_CYCLE = [
@@ -56,6 +60,18 @@ export const ReelComposition: React.FC<{ plan: Plan }> = ({ plan }) => {
           </Sequence>
         );
       })}
+      {plan.outro ? (
+        <Sequence
+          from={Math.round(Math.max(0, ...plan.scenes.map((s) => s.endSec)) * FPS)}
+          durationInFrames={Math.round(OUTRO_SEC * FPS)}
+        >
+          <Outro
+            brandName={plan.outro.brandName}
+            palette={plan.outro.palette}
+            tagline={plan.outro.tagline}
+          />
+        </Sequence>
+      ) : null}
     </AbsoluteFill>
   );
 };
@@ -75,6 +91,12 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
     [0, 1, 1, 0],
     { extrapolateRight: "clamp" },
   );
+
+  // Depth-layered path: when a subject mask exists, composite the subject on its
+  // own plane with effects/motion-graphics behind it and effects in front.
+  if (scene.subjectMaskUrl) {
+    return <LayeredScene scene={scene} sceneIndex={sceneIndex} />;
+  }
 
   // Classic cinemagraph: frozen base image + one animated region (sky/water).
   // Static overlays only (no drifting atmosphere/light-leak) so ONLY the region
@@ -102,6 +124,8 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
         </AbsoluteFill>
         <ColorGrade mood={mood} intensity={0.85} />
         <MotionGraphicsLayer names={scene.motionGraphics} sceneIndex={sceneIndex} />
+        <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} />
+        <EffectsLayer names={scene.effects} band="front" sceneIndex={sceneIndex} palette={scene.palette} />
         <Vignette intensity={0.5} />
         <FilmGrain intensity={0.03} />
         {scene.caption ? (
@@ -169,6 +193,8 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
 
         {/* Astrology motion graphics — real animated motion (rotate/orbit/twinkle/flow) */}
         <MotionGraphicsLayer names={scene.motionGraphics} sceneIndex={sceneIndex} />
+        <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} />
+        <EffectsLayer names={scene.effects} band="front" sceneIndex={sceneIndex} palette={scene.palette} />
 
         {/* Layer 6: Film grain — always, very subtle */}
         <FilmGrain intensity={0.035} />
@@ -201,6 +227,8 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
         }}
       />
       <MotionGraphicsLayer names={scene.motionGraphics} sceneIndex={sceneIndex} />
+      <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} />
+      <EffectsLayer names={scene.effects} band="front" sceneIndex={sceneIndex} palette={scene.palette} />
       {scene.caption ? (
         <KineticCaption
           caption={scene.caption}
