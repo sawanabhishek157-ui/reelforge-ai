@@ -1,108 +1,98 @@
-# ReelForge AI — Session Handoff (2026-06-21)
+# ReelForge AI — Session Handoff (2026-06-24)
 
-Agentic content-factory for advertising the user's products (SoulStarr = Hinglish
-astrology reels, plus CodeGraph, SubclassCard, two app-store apps, etc.). Built on
-the friend's Next.js 16 + Remotion v0.
+Agentic content factory making advertising reels for the user's products (SoulStarr =
+Hinglish astrology reels; also CodeGraph, TripSynk, Calybe). Next.js 16 + Remotion v0.
 
-## Branches / git
-- `feat/phase-2-agentic-layer` ← **current, has everything** (Phase 1 + Phase 2).
-- `feat/phase-1-content-engine` ← Phase 1 only. `main` ← clean original base.
-- Not yet merged to main (ask user before merging / PRs).
-- Commit only when asked. Attribution disabled (no Co-Authored-By).
+## ⚠️ BLOCKER: Claude API capped until 2026-07-01 00:00 UTC
+The content pipeline runs on Claude (idea/script/storyboard/speech-plan + the
+romanized→Devanagari transliteration). The user's Anthropic key hit its usage limit, so
+**generating new reels end-to-end is blocked until July 1**. The video ENGINE (physics,
+depth, effects, render, FLUX images, local voice synth) needs no Claude and works fine.
+Two ways forward (USER MUST PICK):
+1. **Route LLM steps to Gemini** (user has `GEMINI_API_KEY`) to unblock generation now.
+   Files to switch: `src/lib/storyboard.ts` (`MODEL = "claude-sonnet-4-6"`, `writeScript`+
+   `buildStoryboard`), `src/lib/ideation.ts`, `src/lib/profile.ts`, `src/lib/speech-plan.ts`,
+   and the transliterator `src/lib/translit.ts` (check which LLM it calls). Honest note told
+   to user: Gemini Flash is fast + fine for translit/JSON, slightly weaker than Claude Sonnet
+   on creative script quality + JSON reliability (harden parsing). Keep Claude as the
+   post-July-1 default.
+2. **Polish the video engine while capped** (no Claude needed).
 
-## Status: Phase 1 (motion engine) ✅ + Phase 2 (agentic pipeline) ✅ both work end-to-end
-A full reel generates from product → ideas → script → storyboard → images → voice →
-music → assemble, gated for human approval. UI at **http://localhost:3000/studio**
-(dev server is running: `npm run dev`). Example finished reel:
-`public/runs/run-53d5a0e6476b/output-mg.mp4`.
+## Branch / git
+- `feat/phase-2-agentic-layer` — has everything. Commits this session: `24ad109` (voice/TTS
+  service + bake-off), `d3cb352` (depth layering, 24-effect brand library, free voice, outro),
+  `8b616c4` (real physics motion + 3D outro + director wind). **LOCAL ONLY.**
+- **Push blocked:** remote is the friend's repo `sawanabhishek157-ui/reelforge-ai`; the user's
+  account has no write access. They want a PR via their own fork/access — get that, then branch+PR.
+- Commit only when asked. Don't push.
 
-## The MOTION journey (important — lots of dead ends ruled out)
-- **Parallax (DepthFlow) is abandoned for people**: single-image parallax morphs
-  hard-edged subjects (people) at ANY camera path/amplitude (tested circular,
-  forward, 0.3–0.8 → 6–8/10 morph). Kept only as opt-in (AMP>0) for person-free scenes.
-- **Morph-free recipe (default)**: rack focus (depth-of-field pull via DepthFlow
-  height≈0 + blur) + one-directional forward dolly + **Ken Burns** (Remotion,
-  scale 1.04→1.24) + **atmosphere** overlay + **cinemagraph** (sky/water region) +
-  grade/grain. Verified morph 0–1/10.
-- **MOTION GRAPHICS = the breakthrough** (user's idea): 6 deterministic Remotion
-  overlays in `src/remotion/motiongraphics/` — StarField, CosmicDust, ZodiacWheel,
-  OrbitingBodies, ConstellationLines, LightRays. Composited via `MotionGraphicsLayer`
-  in all `SceneView` branches; storyboard director assigns 1–2/scene by theme; runs
-  maps them into the Plan. Gemini rated the reel **9/10 dynamic** with these. They
-  pop on dark/cosmic skies; get lost on busy/bright images (expected).
-- Self-verify tools: `scripts/see-video.mjs <mp4> "<prompt>"` (Gemini watches —
-  uses GEMINI_API_KEY; downscale long clips first, it choked on a 41s file) and
-  `scripts/motion-meter.py` (OpenCV optical flow via `uv run --with opencv-python-headless`).
-  NOTE: optical-flow undersells slow/large-sky motion — trust Gemini + the user's eyes.
+## What works now (the upgraded video engine)
+- **Free voice in the pipeline:** local TTS service `scripts/tts-service/` (FastAPI on :8100,
+  `uv run uvicorn app:app --port 8100`; Parler/Kokoro/Svara/Chatterbox on MPS). Wired via a
+  `"local"` provider in `src/lib/tts.ts`. **SoulStarr default voice = `parler-mystic-f`** (deep
+  mysterious Parler female — Gemini-verified emotional; the user liked it). Needs Devanagari →
+  the pipeline transliterates via `translit.ts` (Claude — currently capped).
+- **Depth-layered compositor** `src/remotion/LayeredScene.tsx`: subject/foreground on its own
+  masked plane, effects behind + in front, strong per-layer parallax (director's `motionStyle`
+  drives the camera), subject **wind-sway**, uses `backgroundUrl` plane when present (else full image).
+- **Subject matting** `src/lib/matte.ts`: person mask via segmentation; falls back to a
+  **depth-map foreground split** so landscape/no-subject scenes also layer (every scene has depth now).
+- **24 effects + physics** `src/remotion/effects/` (registry `index.tsx`, `names.ts`, palettes
+  `brands.ts`). Particle effects (leaves/petals/embers/snow/dust/sparks) are **real deterministic
+  physics** — `src/remotion/physics/simulate.ts` (Euler + `@remotion/noise` turbulence, baked once)
+  + `PhysicsParticles.tsx`. Plus weather/magic/cosmic/tech/flame + Lottie objects (rocket/confetti/
+  building, `public/lottie/`). All palette-tinted.
+- **Director assigns per scene** (`src/lib/storyboard.ts`): hook-first short script, motion on
+  every scene, on-brand effects (constrained to `brandTheme(slug).effects`), and `windMood`
+  (calm/breeze/gust/swirl → particle force + sway + parallax). Brand palette/tagline in `brands.ts`.
+- **Branded outro** `src/remotion/Outro.tsx`: 3D kinetic metallic wordmark + moving cosmic
+  backdrop + flames, auto-appended to every reel, themed per brand. (User wants it MORE premium —
+  iterate; a real logo PNG would help.)
+- **Stagger** `effects/Stagger.tsx`: effects cascade in over ~1.2s, not all at once.
 
-## VOICE — in progress (this is where we stopped)
-- **Decisions locked:** (1) use fixed high-quality voices + Speech Plan (NO cloning
-  for now). (2) Speech Plan wired FIRST (done). 
-- **DONE:** Speech Performance Plan (`src/lib/speech-plan.ts`, Claude tags per-sentence
-  emotion/energy/speed/pauses/emphasis) is now wired into the agentic voice step
-  (`runVoice` in `src/lib/runs.ts`) → `generateVoiceover(script, out, voiceId, speechPlan)`.
-  Just regenerated voice for run-53d5a0e6476b (737K vs old 240K) — NOT yet listened to.
-- **Voice findings** (compare at http://localhost:3000/voice-options/index.html):
-  Veena (Segmind, Hindi-native) & ElevenLabs = 8–9/10; Chatterbox (Segmind) = 7–8/10,
-  romanized-only (garbles Devanagari), supports cloning + `exaggeration`; Edge needs
-  Devanagari (translit auto-applied for lang:"hi" voices). User: Veena/ElevenLabs
-  too robotic vs IG memes; Edge "good but missing something."
-- **NEXT (voice):**
-  1. Listen to the speech-plan-directed voice (run-53d5a0e6476b/voice.mp3) — judge if
-     the performance direction made it noticeably more human. Tune speech-plan→engine
-     mapping if needed.
-  2. **Pick & set deep/mysterious male + female brand voices** the user wants. Engine
-     candidates: ElevenLabs Antoni (deep male, but lang:"en" so won't auto-transliterate —
-     needs Devanagari handling) / Edge Madhur (male hi, free) / Veena agastya (needs
-     adding as a tts.ts provider). Set per-product `default_voice_id`. The user wants a
-     consistent male + female voice, deep/mysterious for SoulStarr, different tone per product.
-  3. **Per-product voice config**: extend product profile to store engine + voice + tone +
-     gender so each brand has its own voice. Storyboard already uses `product.defaultVoiceId`.
-  4. Cloning via Segmind Chatterbox is deferred (needs a public reference-audio URL; works
-     romanized; `exaggeration` for emotion). Revisit if they want a unique voice later.
+## Pipeline data flow
+`runs.ts` orchestrates: createRun→ideate→script→storyboard→images→voice→music→assemble(render).
+`scene-images.ts` per scene: FLUX image (`segmind.ts`) + depth (`depth.ts`) + subject mask
+(`matte.ts`). `runs.ts:runImages` builds the Remotion `Plan` (palette, effects, windMood,
+subjectMaskUrl, backgroundUrl). Render via `remotion-render.ts`. `Root.tsx` derives duration from
+`plan.durationSec` (outro adds 3.5s in `runVoice`). SoulStarr product id `f55e3538d2f9`, slug `soulstarr`.
 
-## Stack / providers (CRITICAL)
-- **fal.ai is DEAD** (out of balance, user won't top up). Use **Segmind** (key in store).
-- Images: `src/lib/segmind.ts` (FLUX schnell, dims must be /64). Music: `src/lib/music-gen.ts`
-  (MusicGen). Voice TTS: Edge (free) + ElevenLabs (free plan: limited, library voices blocked)
-  + Segmind Veena/Chatterbox (tested via scripts, not yet in tts.ts as providers).
-- Depth: `src/lib/depth.ts` (Depth Anything v2 LARGE, local/free). DepthFlow: uv tool
-  `~/.local/share/uv/tools/depthflow/bin/python scripts/df_scene.py` (the bare CLI renders
-  STATIC — must use df_scene.py). Segmentation (cinemagraph): `src/lib/segment.ts`.
-- Env via `seedenv .` (ANTHROPIC, SEGMIND, ELEVENLABS, GEMINI, FAL). `.env*` gitignored.
-- Codegraph indexed for this repo (`codegraph build`).
+## PENDING / next steps
+1. **Task A — FLUX-Fill clean backgrounds** (NOT built; plan in `~/.claude/plans/elegant-dazzling-kite.md`):
+   inpaint the subject region in `scene-images.ts` → subject-free `image.bg.png` → `SceneAsset.
+   backgroundUrl`. Lets the foreground parallax HARD with no ghost-hole. `Scene.backgroundUrl`
+   field + LayeredScene already consume it (fallback to imageUrl). Segmind FLUX Fill endpoint, or
+   free fallback (edge-dilate mask + 1.08x oversample).
+2. **Physics polish** (user feedback): make wind/gravity MORE visible — more particles, stronger
+   forces, an obvious directional wind gust. (User noted the left-right "shake" is the CAMERA
+   parallax/zoomdrift, not turbulence; turbulence is the particle wobble. Wants to SEE wind/gravity.)
+3. **Outro**: make more premium / less basic; support a logo image.
+4. **Gemini routing** (if user picks it) to unblock generation during the Claude cap.
+5. **Phase 2 — content-intelligence + analytics/MCP** (planned, not started): free trend
+   extraction, Meta MCP, an MCP over the user's EXISTING live analytics (page visits/drop-off) for
+   data-driven content. User confirmed video-first, this next.
 
-## Phase 2 architecture
-- DB (`src/lib/db.ts`): `products` (brand profile) + `content_runs` (step/status + JSON
-  artifacts: idea/script/**storyboard_json**/plan/feedback). Types: `src/lib/types.ts`.
-- Step libs: `products.ts`, `profile.ts` (Claude drafts a profile), `ideation.ts`,
-  `storyboard.ts` (writeScript + buildStoryboard — image prompts demand 3 depth planes,
-  assigns motionStyle/cinemagraph/motionGraphics), `scene-images.ts` (segmind+depth+mask).
-- Orchestrator `src/lib/runs.ts`: createRun, approveStep (advance+gen next), regenerateStep,
-  editStep. Assemble builds a Remotion Plan + renders via `renderReel`.
-- API: `/api/products(+draft,[id])`, `/api/runs(+[id]/approve|regenerate|edit)`.
-- UI: `(app)/studio-products` (draft+save profiles), `(app)/studio` (start run),
-  `(app)/studio/[runId]` (gated wizard: approve / regenerate-w-feedback / edit).
-- Existing SoulStarr product id: `f55e3538d2f9`. Drive a full run headless:
-  `node scripts/drive-run.mjs <productId>`.
+## Verify / run
+- Local TTS up? `curl -s localhost:8100/health`. Restart: `cd scripts/tts-service && uv run uvicorn app:app --port 8100`.
+- Full reel headless: `node scripts/drive-run.mjs f55e3538d2f9` (uses the dev server on :3000).
+- Direct render of a saved plan (dodges the drive-run client timeout): extract `plan_json` from
+  `data/reelforge.db` → `{plan}` props → `npx remotion render src/remotion/index.ts Reel out.mp4 --props=...`.
+- Verify visuals: `ffmpeg -ss <t> -i out.mp4 -frames:v 1 f.png` + Read it, or Gemini-check audio/video.
 
-## Gotchas (bugs already hit + fixed — watch for these patterns)
-- API responses are enveloped: `{run}`, `{product}`, `{runs}`, `{products}` — UI must read `.run` etc.
-- Async route handlers must `await` createRun/approveStep/regenerateStep.
-- `content_runs.storyboard_json` column is required (storyboard must persist between gates).
-- macOS: no `timeout`/`\b` in sed (BSD). `node --env-file=.env` for scripts needing keys.
-- Long curl/Gemini calls auto-background past 2min; poll the output file.
-- Subagents may create stray `.claude/worktrees/` + auto-commit — clean up after.
+## Gotchas
+- `drive-run` client times out ~300s on long renders (undici headers, not a failure) → extract the
+  plan + render directly. Don't double-background (`&` + run_in_background) — the wrapper exits and
+  you lose the completion signal.
+- macOS: no `timeout`; `node --env-file=.env` for scripts needing keys; `npx tsx` (tsx isn't a dep).
+- Big test renders gitignored: `public/effects-test/`, `public/depth-test/` (the 9GB tts venv too).
+  Latest demos there: `soulstarr-reel-v6.mp4` (physics, silent), `physics-preview.mp4`,
+  `outro-preview.mp4`, `brand-showcase.mp4`.
+- Lottie assets: download-verified ≠ content-verified — RENDER and eyeball before trusting.
+- `background-clip:text` breaks under 3D transforms in headless Chrome (use solid color + textShadow).
 
-## Throwaway/dev artifacts (gitignored or deletable)
-`public/{voice-ab,voice-ab-demo,seg-test,cine-demo,depth-test,voice-options,runs}/`,
-`data/*.json`. Dev scripts kept as references: voice-ab, motion-demo, depthflow-demo,
-gen-*, see-video, motion-meter, df_scene, drive-run, *-test, *-sample.
-
-## Immediate next steps
-1. **Voice**: judge the speech-plan voice; pick + set deep male/female brand voices;
-   per-product voice config. (User actively waiting on this.)
-2. Generate product profiles for the other products (CodeGraph, SubclassCard, apps) —
-   Claude drafts from repo/store listings, user edits.
-3. Consider merging Phase 1 + Phase 2 to main (ask first).
-4. Phase 3 (deferred): batch/calendar, auto-grounding, multi-platform posting.
+## User preferences (from this session)
+- Always state the exact save path + localhost URL for any generated file; never leave in /tmp.
+- Wants the video to POP — strong visible motion, motion graphics, physics; "not a fake video."
+- Free everything (no paid AI video, no per-char TTS). Multi-image-per-scene is OK if cheaper than video.
+- Per-step user steering during generation: the Studio already has approve/regenerate-with-feedback/
+  edit gates; finer per-scene control is a possible future enhancement (not a blocker — engine is committable).
