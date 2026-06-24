@@ -74,6 +74,8 @@ export interface StoryboardScene {
   motionGraphics?: string[];
   /** Reusable VFX effects for this scene (lightning, leaves, embers, godRays). */
   effects?: string[];
+  /** Wind strength driving physics particles + subject sway + parallax. */
+  windMood?: "calm" | "breeze" | "gust" | "swirl";
   durationSec: number;
 }
 

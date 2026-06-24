@@ -22,7 +22,7 @@ export const BRAND_THEMES: Record<string, BrandTheme> = {
   // Astrology / soulmate — cosmic, mystical, violet + gold
   soulstarr: {
     palette: ["#6B21A8", "#4B0082", "#D4AF37", "#F59E0B", "#E0D4FF"],
-    effects: ["godRays", "nebula", "shootingStars", "aurora", "sparkles", "magicDust", "starburst", "fireflies", "leaves", "flame"],
+    effects: ["godRays", "nebula", "shootingStars", "aurora", "sparkles", "magicDust", "starburst", "fireflies", "leaves", "petals", "embers", "dustMotes", "flame"],
     motionGraphics: ["starField", "cosmicDust", "zodiacWheel", "orbitingBodies", "constellationLines", "lightRays"],
     tagline: "Follow for your cosmic match ✨",
   },

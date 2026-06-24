@@ -268,6 +268,7 @@ async function runImages(run: ContentRun): Promise<ContentRun> {
       ...(sbScene.effects && sbScene.effects.length > 0
         ? { effects: sbScene.effects, palette }
         : {}),
+      ...(sbScene.windMood ? { windMood: sbScene.windMood } : {}),
       ...(asset.subjectMaskUrl != null ? { subjectMaskUrl: asset.subjectMaskUrl } : {}),
       ...(asset.cinemagraph != null
         ? {

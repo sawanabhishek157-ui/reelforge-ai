@@ -7,6 +7,9 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import { noise2D } from "@remotion/noise";
+
+const WIND_AMP: Record<string, number> = { calm: 0.4, breeze: 1, gust: 1.9, swirl: 1.3 };
 
 import { KineticCaption, pickCaptionStyle } from "./KineticCaption";
 import { MotionGraphicsLayer } from "./motiongraphics";
@@ -106,27 +109,39 @@ export const LayeredScene: React.FC<{ scene: Scene; sceneIndex: number }> = ({
 
   const imgStyle: React.CSSProperties = { width, height, objectFit: "cover" };
 
+  // Subject "alive" sway — the same wind field nudges/tilts the cut-out so it
+  // reads as moving in the wind. Rigid transform only (never a pixel warp → no morph).
+  const windK = WIND_AMP[scene.windMood ?? "breeze"];
+  const swayX = noise2D("sway-x", sceneIndex * 3.1, frame * 0.018) * 12 * windK;
+  const swayRot = noise2D("sway-rot", sceneIndex * 1.7, frame * 0.02) * 1.3 * windK;
+  const subjStyle = layer(0.85);
+  subjStyle.transform = `${subjStyle.transform} translateX(${swayX}px) rotate(${swayRot}deg)`;
+
+  // Clean (subject-free) background plane when available — lets the subject
+  // parallax hard with no ghost hole; falls back to the full image.
+  const bgUrl = scene.backgroundUrl ?? scene.imageUrl;
+
   return (
     <AbsoluteFill style={{ opacity, overflow: "hidden", background: "#000" }}>
       {/* z0 — background plane (far — barely moves) */}
       <AbsoluteFill style={layer(0.0)}>
-        <Img src={toStatic(scene.imageUrl)} style={imgStyle} />
+        <Img src={toStatic(bgUrl)} style={imgStyle} />
       </AbsoluteFill>
 
       {/* z1 — BEHIND band: god-rays/fog + cosmic motion graphics, mid-depth */}
       <AbsoluteFill style={layer(0.35)}>
         <MotionGraphicsLayer names={scene.motionGraphics} sceneIndex={sceneIndex} />
-        <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} />
+        <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} windMood={scene.windMood} />
       </AbsoluteFill>
 
-      {/* z2 — SUBJECT/foreground plane (masked; pushes toward camera) */}
-      <AbsoluteFill style={{ ...maskStyle, ...layer(0.85) }}>
+      {/* z2 — SUBJECT/foreground plane (masked; pushes toward camera + wind sway) */}
+      <AbsoluteFill style={{ ...maskStyle, ...subjStyle }}>
         <Img src={toStatic(scene.imageUrl)} style={imgStyle} />
       </AbsoluteFill>
 
       {/* z3 — FRONT band: leaves / embers / lightning, nearest — moves most */}
       <AbsoluteFill style={layer(1.0)}>
-        <EffectsLayer names={scene.effects} band="front" sceneIndex={sceneIndex} palette={scene.palette} />
+        <EffectsLayer names={scene.effects} band="front" sceneIndex={sceneIndex} palette={scene.palette} windMood={scene.windMood} />
       </AbsoluteFill>
 
       {/* z4 — grade / vignette / grain / caption (full-frame, topmost) */}

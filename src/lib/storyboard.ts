@@ -115,6 +115,7 @@ Rules:
 - motionGraphics: array of 1-2 astrology overlay names that add real animated motion. EVERY scene MUST have at least one (never empty) — nothing should ever sit static. Allowed: "starField" (twinkling drifting stars — for night/cosmic scenes), "cosmicDust" (flowing energy/air particles), "zodiacWheel" (rotating zodiac ring — for astrology/destiny beats), "orbitingBodies" (orbiting planets — for cosmic/fate themes), "constellationLines" (drawing constellations — for star/connection themes), "lightRays" (rotating divine light — for spiritual/reveal moments). Pick 1-2 that fit and VARY across scenes.
 - effects: array of 1-2 cinematic VFX that suit the scene's mood (they composite with real depth — some sit BEHIND the subject, some IN FRONT). Add motion to EVERY scene — every scene should have something moving (stars, air, particles, light, an object). Choose ONLY from the "Allowed effects for THIS brand" list provided in the context below. Effect vocabulary by family: weather (rain, snow, fog, clouds), magic (sparkles, fireflies, bokeh, magicDust), cosmic (nebula, shootingStars, aurora, starburst, godRays), elements (lightning, leaves, embers), tech (gridLines, dataStream, glitch, neonGlow), objects (citySkyline, confetti, rocket). Pick 1-2 per scene and VARY them across scenes so the reel feels alive and never repetitive.
 - durationSec: integer 2-4 (scene 0 the hook: 2-3). Keep scenes SHORT for a fast pace. The sum of all scene durations should approximate the total spoken duration.
+- windMood: one of "calm" | "breeze" | "gust" | "swirl" — the air/energy of the scene. It drives REAL physics: particle motion (leaves/embers blowing), the subject swaying in the wind, and parallax strength. Pick to match the beat (calm = still/intimate, breeze = gentle, gust = dramatic/powerful, swirl = chaotic/cosmic). Vary across scenes.
 - musicMood: a single mood id from the allowed list that best fits the overall idea and emotional arc.
 - voiceId: the voice id to use for narration.
 
@@ -129,6 +130,7 @@ Output ONLY valid JSON. No prose, no markdown, no code fences. Exact schema:
       "cinemagraph": {"region": "sky" | "water"} | null,
       "motionGraphics": string[],
       "effects": string[],
+      "windMood": "calm" | "breeze" | "gust" | "swirl",
       "durationSec": number
     }
   ],
@@ -264,7 +266,12 @@ function validateScene(
     effects.push(allowedEffects[idx % allowedEffects.length]);
   }
 
-  return { caption, imagePrompt, motionStyle, cinemagraph, motionGraphics, effects, durationSec };
+  const WINDS = ["calm", "breeze", "gust", "swirl"] as const;
+  const windMood = WINDS.includes(s.windMood as (typeof WINDS)[number])
+    ? (s.windMood as StoryboardScene["windMood"])
+    : "breeze";
+
+  return { caption, imagePrompt, motionStyle, cinemagraph, motionGraphics, effects, windMood, durationSec };
 }
 
 function validateStoryboard(

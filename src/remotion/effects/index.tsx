@@ -4,10 +4,7 @@ import { AbsoluteFill } from "remotion";
 import { EFFECT_BAND, EFFECT_NAMES, type EffectBand, type EffectName } from "./names";
 import { GodRays } from "./GodRays";
 import { Lightning } from "./Lightning";
-import { Leaves } from "./Leaves";
-import { Embers } from "./Embers";
 import { Rain } from "./Rain";
-import { Snow } from "./Snow";
 import { Fog } from "./Fog";
 import { Clouds } from "./Clouds";
 import { Sparkles } from "./Sparkles";
@@ -25,23 +22,35 @@ import { NeonGlow } from "./NeonGlow";
 import { Flame } from "./Flame";
 import { LottieObject, LOTTIE_OBJECTS } from "./LottieObject";
 import { StaggerIn } from "./Stagger";
+import { PhysicsParticles } from "../physics/PhysicsParticles";
+import type { PhysicsType, WindMood } from "../physics/simulate";
 
 export { EFFECT_NAMES, EFFECT_BAND, type EffectName, type EffectBand } from "./names";
 
-function render(name: EffectName, seed: number, palette?: string[]): React.ReactNode {
+// Particle effects routed to the real physics simulation (wind/gravity/turbulence).
+const PHYSICS: Partial<Record<EffectName, PhysicsType>> = {
+  leaves: "windLeaves",
+  petals: "fallingPetals",
+  embers: "risingEmbers",
+  snow: "snow",
+  dustMotes: "dust",
+  sparks: "sparks",
+};
+
+function render(name: EffectName, seed: number, palette?: string[], windMood?: WindMood): React.ReactNode {
+  // Physics-simulated particles (organic, deterministic).
+  const phys = PHYSICS[name];
+  if (phys) return <PhysicsParticles type={phys} seed={seed} palette={palette} windMood={windMood} />;
+
   // Lottie-backed animated objects carry their own colors (palette doesn't apply).
   const lottie = LOTTIE_OBJECTS[name];
   if (lottie) return <LottieObject def={lottie} />;
 
   const p = { seed, palette };
   switch (name) {
-    // Original four predate the palette prop — they keep their built-in colors.
     case "godRays": return <GodRays seed={seed} />;
     case "lightning": return <Lightning seed={seed} />;
-    case "leaves": return <Leaves seed={seed} />;
-    case "embers": return <Embers seed={seed} />;
     case "rain": return <Rain {...p} />;
-    case "snow": return <Snow {...p} />;
     case "fog": return <Fog {...p} />;
     case "clouds": return <Clouds {...p} />;
     case "sparkles": return <Sparkles {...p} />;
@@ -72,7 +81,8 @@ export const EffectsLayer: React.FC<{
   band: EffectBand;
   sceneIndex?: number;
   palette?: string[];
-}> = ({ names, band, sceneIndex = 0, palette }) => {
+  windMood?: WindMood;
+}> = ({ names, band, sceneIndex = 0, palette, windMood }) => {
   if (!names || names.length === 0) return null;
   const valid = names.filter(
     (n): n is EffectName => (EFFECT_NAMES as string[]).includes(n) && EFFECT_BAND[n as EffectName] === band,
@@ -84,7 +94,7 @@ export const EffectsLayer: React.FC<{
     <AbsoluteFill style={{ pointerEvents: "none" }}>
       {valid.map((n, i) => (
         <StaggerIn key={n} order={i} baseDelay={baseDelay}>
-          {render(n, sceneIndex * 17 + i * 11, palette)}
+          {render(n, sceneIndex * 17 + i * 11, palette, windMood)}
         </StaggerIn>
       ))}
     </AbsoluteFill>

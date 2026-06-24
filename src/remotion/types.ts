@@ -8,6 +8,8 @@ export type Scene = {
   startSec: number;
   endSec: number;
   imageUrl: string; // public-relative URL like "/projects/<id>/scenes/scene-0.png"
+  /** Subject-free background plane (FLUX-Fill) so the subject parallaxes without a ghost hole. */
+  backgroundUrl?: string;
   caption: string;
   motion: Motion;
   // Extended fields (all optional for back-compat with existing plans)
@@ -24,6 +26,8 @@ export type Scene = {
   effects?: string[];
   /** Brand color palette — tints the effects to match product identity. */
   palette?: string[];
+  /** Wind strength driving physics particles + subject sway + parallax. */
+  windMood?: "calm" | "breeze" | "gust" | "swirl";
   /** White-on-black mask of the foreground subject. When set, the scene renders
    *  through LayeredScene with the subject on its own plane (effects behind it). */
   subjectMaskUrl?: string;

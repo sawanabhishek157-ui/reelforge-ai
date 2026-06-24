@@ -124,8 +124,8 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
         </AbsoluteFill>
         <ColorGrade mood={mood} intensity={0.85} />
         <MotionGraphicsLayer names={scene.motionGraphics} sceneIndex={sceneIndex} />
-        <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} />
-        <EffectsLayer names={scene.effects} band="front" sceneIndex={sceneIndex} palette={scene.palette} />
+        <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} windMood={scene.windMood} />
+        <EffectsLayer names={scene.effects} band="front" sceneIndex={sceneIndex} palette={scene.palette} windMood={scene.windMood} />
         <Vignette intensity={0.5} />
         <FilmGrain intensity={0.03} />
         {scene.caption ? (
@@ -193,8 +193,8 @@ const SceneView: React.FC<SceneViewProps> = ({ scene, sceneIndex }) => {
 
         {/* Astrology motion graphics — real animated motion (rotate/orbit/twinkle/flow) */}
         <MotionGraphicsLayer names={scene.motionGraphics} sceneIndex={sceneIndex} />
-        <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} />
-        <EffectsLayer names={scene.effects} band="front" sceneIndex={sceneIndex} palette={scene.palette} />
+        <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} windMood={scene.windMood} />
+        <EffectsLayer names={scene.effects} band="front" sceneIndex={sceneIndex} palette={scene.palette} windMood={scene.windMood} />
 
         {/* Layer 6: Film grain — always, very subtle */}
         <FilmGrain intensity={0.035} />

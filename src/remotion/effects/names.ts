@@ -33,6 +33,10 @@ export type EffectName =
   | "neonGlow"
   // elements
   | "flame"
+  // physics particles (real simulation — see physics/)
+  | "petals"
+  | "dustMotes"
+  | "sparks"
   // animated objects (Lottie — see LottieObject.tsx; only content-verified assets kept)
   | "citySkyline"
   | "confetti"
@@ -44,7 +48,7 @@ export const EFFECT_NAMES: EffectName[] = [
   "sparkles", "fireflies", "bokeh", "magicDust",
   "nebula", "shootingStars", "aurora", "starburst",
   "gridLines", "dataStream", "glitch", "neonGlow",
-  "flame",
+  "flame", "petals", "dustMotes", "sparks",
   "citySkyline", "confetti", "rocket",
 ];
 
@@ -75,6 +79,10 @@ export const EFFECT_BAND: Record<EffectName, EffectBand> = {
   starburst: "front",
   glitch: "front",
   flame: "front",
+  // physics particles
+  petals: "front",
+  dustMotes: "front",
+  sparks: "front",
   // Lottie objects (content-verified)
   citySkyline: "behind",
   confetti: "front",
