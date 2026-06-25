@@ -12,13 +12,7 @@
  *   product names) are kept in Latin script per the prompt instruction.
  */
 
-import Anthropic from "@anthropic-ai/sdk";
-
-let _client: Anthropic | null = null;
-function client() {
-  if (!_client) _client = new Anthropic();
-  return _client;
-}
+import { llm } from "./llm";
 
 /** Fraction of non-space characters that must be Devanagari to skip transliteration. */
 const DEVANAGARI_THRESHOLD = 0.4;
@@ -55,7 +49,7 @@ export async function transliterateToDevanagari(text: string): Promise<string> {
   // Skip the API call if already predominantly Devanagari
   if (isAlreadyDevanagari(text)) return text;
 
-  const resp = await client().messages.create({
+  const resp = await llm().messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: Math.max(1024, Math.ceil(text.length * 2)),
     system: `You are a Hindi transliteration engine for a TTS (text-to-speech) system.

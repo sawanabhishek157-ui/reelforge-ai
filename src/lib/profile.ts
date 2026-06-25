@@ -1,11 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { llm } from "@/lib/llm";
 import type { Language, ProductInput } from "@/lib/types";
-
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic();
-  return _client;
-}
 
 export interface DraftProfileInput {
   name: string;
@@ -201,7 +195,7 @@ function parseAndFill(
 }
 
 export async function draftProfile(input: DraftProfileInput): Promise<ProductInput> {
-  const resp = await client().messages.create({
+  const resp = await llm().messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 1500,
     system: buildSystemPrompt(),

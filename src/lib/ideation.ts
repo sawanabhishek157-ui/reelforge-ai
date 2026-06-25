@@ -1,11 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { llm } from "@/lib/llm";
 import type { Product, Idea } from "@/lib/types";
-
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic();
-  return _client;
-}
 
 function buildSystemPrompt(product: Product): string {
   const pillars =
@@ -144,7 +138,7 @@ export async function generateIdeas(
     throw new Error("ideation: count must be at least 1");
   }
 
-  const resp = await client().messages.create({
+  const resp = await llm().messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2048,
     system: buildSystemPrompt(product),
@@ -157,7 +151,6 @@ export async function generateIdeas(
   });
 
   const text = resp.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("\n")
     .trim();

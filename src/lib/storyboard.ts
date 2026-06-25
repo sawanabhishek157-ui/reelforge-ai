@@ -3,21 +3,15 @@
  *  1. writeScript   — full voiceover script (~20-45s spoken)
  *  2. buildStoryboard — scene-by-scene storyboard with FLUX prompts, motion, music mood
  */
-import Anthropic from "@anthropic-ai/sdk";
+import { llm, type LlmTextBlock } from "./llm";
 import type { Product, Idea, Storyboard, StoryboardScene, MotionStyle } from "./types";
 import { MOODS } from "./music";
 import { VOICES } from "./tts";
 import { EFFECT_NAMES } from "../remotion/effects/names";
 import { brandTheme } from "../remotion/effects/brands";
 
-// ── Lazy singleton Anthropic client ──────────────────────────────────────────
-
-let _client: Anthropic | null = null;
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic();
-  return _client;
-}
-
+// Routed through the provider-agnostic adapter (Claude by default; Gemini when
+// LLM_PROVIDER=gemini). Keep the Claude model id — the adapter maps it.
 const MODEL = "claude-sonnet-4-6";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -25,9 +19,8 @@ const MODEL = "claude-sonnet-4-6";
 const MOOD_IDS = MOODS.filter((m) => m.id !== "none").map((m) => m.id);
 const MOTION_STYLES: MotionStyle[] = ["zoomdrift", "orbit", "dolly", "vertical"];
 
-function extractText(content: Anthropic.Messages.ContentBlock[]): string {
+function extractText(content: LlmTextBlock[]): string {
   return content
-    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("\n")
     .trim();
@@ -88,7 +81,7 @@ export async function writeScript(
     lines.push("", `User feedback for this revision: ${opts.feedback}`);
   }
 
-  const resp = await client().messages.create({
+  const resp = await llm().messages.create({
     model: MODEL,
     max_tokens: 512,
     system: SCRIPT_SYSTEM,
@@ -178,7 +171,7 @@ export async function buildStoryboard(
     lines.push("", `User feedback for this revision: ${opts.feedback}`);
   }
 
-  const resp = await client().messages.create({
+  const resp = await llm().messages.create({
     model: MODEL,
     max_tokens: 2048,
     system: STORYBOARD_SYSTEM,
