@@ -13,13 +13,19 @@ interface PhysicsParticlesProps {
 }
 
 const DEFAULT_COUNT: Record<PhysicsType, number> = {
-  windLeaves: 42,
-  fallingPetals: 52,
-  risingEmbers: 90,
-  snow: 160,
-  dust: 120,
-  sparks: 60,
+  windLeaves: 70,
+  fallingPetals: 85,
+  risingEmbers: 150,
+  snow: 240,
+  dust: 180,
+  sparks: 110,
 };
+
+/** Speed (px/frame) above which non-leaf particles render as motion streaks. */
+const STREAK_MIN_SPEED = 6;
+/** Streak length per unit speed (caps so fast particles don't become lasers). */
+const STREAK_SCALE = 0.9;
+const STREAK_MAX = 26;
 
 const DEFAULT_PALETTE: Record<PhysicsType, string[]> = {
   windLeaves: ["#d98a3d", "#c46a2a", "#e0a64e", "#7fae53"],
@@ -89,6 +95,17 @@ export const PhysicsParticles: React.FC<PhysicsParticlesProps> = ({
               return (
                 <g key={i} transform={`translate(${p.x},${p.y}) rotate(${p.rot})`} opacity={opacity}>
                   <ellipse cx={0} cy={0} rx={p.size} ry={p.size * 0.5} fill={color} />
+                </g>
+              );
+            }
+            // Fast particles streak along their velocity so wind/speed is visible.
+            const speed = Math.hypot(p.vx, p.vy);
+            if (speed > STREAK_MIN_SPEED) {
+              const len = p.size + Math.min(STREAK_MAX, speed * STREAK_SCALE);
+              const ang = (Math.atan2(p.vy, p.vx) * 180) / Math.PI;
+              return (
+                <g key={i} transform={`translate(${p.x},${p.y}) rotate(${ang})`} opacity={opacity}>
+                  <ellipse cx={0} cy={0} rx={len} ry={p.size} fill={color} />
                 </g>
               );
             }

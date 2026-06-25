@@ -31,6 +31,8 @@ export interface PhysicsConfig {
 export interface ParticleState {
   x: number;
   y: number;
+  vx: number; // velocity — lets the renderer streak fast particles along motion
+  vy: number;
   rot: number;
   size: number;
   opacity: number;
@@ -62,17 +64,23 @@ interface TypeParams {
   flicker: boolean;
 }
 
+// windBase is tuned against each type's drag: terminal cross-speed ≈
+// windBase * windK * (1+gust) / drag px/frame. Values target a visible drift at
+// breeze and an obvious sweep at gust without flinging particles off instantly.
 const PARAMS: Record<PhysicsType, TypeParams> = {
-  windLeaves: { gravity: 0.10, windBase: 0.55, turb: 0.55, drag: 0.045, tumble: 3.0, size: [11, 22], spawn: "top", flicker: false },
-  fallingPetals: { gravity: 0.06, windBase: 0.40, turb: 0.70, drag: 0.035, tumble: 4.0, size: [8, 16], spawn: "top", flicker: false },
-  risingEmbers: { gravity: -0.085, windBase: 0.30, turb: 0.60, drag: 0.02, tumble: 0.0, size: [1.6, 4.2], spawn: "bottom", flicker: true },
-  snow: { gravity: 0.045, windBase: 0.22, turb: 0.30, drag: 0.05, tumble: 0.4, size: [2, 6], spawn: "top", flicker: false },
-  dust: { gravity: 0.0, windBase: 0.18, turb: 0.55, drag: 0.06, tumble: 0.0, size: [1, 3], spawn: "scatter", flicker: true },
-  sparks: { gravity: 0.12, windBase: 0.10, turb: 0.40, drag: 0.03, tumble: 0.0, size: [1, 3], spawn: "scatter", flicker: true },
+  windLeaves: { gravity: 0.11, windBase: 0.70, turb: 0.70, drag: 0.045, tumble: 3.4, size: [11, 22], spawn: "top", flicker: false },
+  fallingPetals: { gravity: 0.07, windBase: 0.55, turb: 0.80, drag: 0.035, tumble: 4.4, size: [8, 16], spawn: "top", flicker: false },
+  risingEmbers: { gravity: -0.11, windBase: 0.30, turb: 0.62, drag: 0.02, tumble: 0.0, size: [1.6, 4.2], spawn: "bottom", flicker: true },
+  snow: { gravity: 0.06, windBase: 0.50, turb: 0.34, drag: 0.05, tumble: 0.4, size: [2, 6], spawn: "top", flicker: false },
+  dust: { gravity: 0.0, windBase: 0.40, turb: 0.58, drag: 0.06, tumble: 0.0, size: [1, 3], spawn: "scatter", flicker: true },
+  sparks: { gravity: 0.16, windBase: 0.32, turb: 0.42, drag: 0.03, tumble: 0.0, size: [1, 3], spawn: "scatter", flicker: true },
 };
 
-const WIND_SCALE: Record<WindMood, number> = { calm: 0.4, breeze: 0.85, gust: 1.6, swirl: 1.1 };
-const TURB_SCALE: Record<WindMood, number> = { calm: 0.5, breeze: 0.85, gust: 1.1, swirl: 1.9 };
+const WIND_SCALE: Record<WindMood, number> = { calm: 0.5, breeze: 1.1, gust: 1.9, swirl: 1.3 };
+const TURB_SCALE: Record<WindMood, number> = { calm: 0.5, breeze: 0.9, gust: 1.3, swirl: 2.2 };
+
+/** How much a peak gust adds over the steady wind (× windMag at gustEnv=1). */
+const GUST_GAIN = 1.1;
 
 const MARGIN = 80;
 
@@ -141,17 +149,29 @@ export function simulateParticles(cfg: PhysicsConfig, totalFrames: number): Part
   const ps: Particle[] = [];
   for (let i = 0; i < count; i++) ps.push(init(type, i, seed, w, h));
 
+  // Consistent wind direction for this scene so particles visibly BLOW across the
+  // frame (not just wobble). Mostly horizontal, with a slight downward tilt.
+  const dirX = random(`${seed}-windDir`) < 0.5 ? -1 : 1;
+  // Wind is mostly horizontal; a small downward tilt only. Kept low so light
+  // particles (snow/dust) don't get dragged to the bottom faster than they respawn.
+  const dirY = 0.05;
+
   const frames: ParticleState[][] = [];
   for (let f = 0; f < totalFrames; f++) {
-    // Slowly shifting global wind direction (gusts).
-    const gust = noise3D(`${seed}-wind`, 0, 0, f * 0.012) * pr.windBase * windK;
+    // Low-frequency gust envelope (0..1): the wind visibly ramps up and eases,
+    // so there are obvious gusts rather than a constant breeze.
+    const gustEnv = Math.max(0, noise3D(`${seed}-gustenv`, 0, 0, f * 0.006));
+    // Steady directional wind, strengthened during gusts.
+    const windMag = pr.windBase * windK * (1 + GUST_GAIN * gustEnv);
+    const windX = dirX * windMag;
+    const windY = dirY * windMag;
     for (let i = 0; i < count; i++) {
       const p = ps[i];
       // curl-noise turbulence — spatially coherent, time-evolving
       const tx = noise3D(`${seed}-tx`, p.x * 0.04, p.y * 0.04, f * 0.03) * pr.turb * turbK;
       const ty = noise3D(`${seed}-ty`, p.x * 0.04, p.y * 0.04, f * 0.03) * pr.turb * turbK * 0.6;
-      p.vx += gust + tx - p.vx * pr.drag;
-      p.vy += pr.gravity + ty - p.vy * pr.drag;
+      p.vx += windX + tx - p.vx * pr.drag;
+      p.vy += pr.gravity + windY + ty - p.vy * pr.drag;
       p.x += p.vx;
       p.y += p.vy;
       p.rot += p.vr;
@@ -167,7 +187,7 @@ export function simulateParticles(cfg: PhysicsConfig, totalFrames: number): Part
       if (p.x < -MARGIN) p.x = w + MARGIN;
       if (p.x > w + MARGIN) p.x = -MARGIN;
     }
-    frames.push(ps.map((p) => ({ x: p.x, y: p.y, rot: p.rot, size: p.size, opacity: opacityFor(p, type, f, h), ci: p.ci })));
+    frames.push(ps.map((p) => ({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, rot: p.rot, size: p.size, opacity: opacityFor(p, type, f, h), ci: p.ci })));
   }
   return frames;
 }
