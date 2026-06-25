@@ -116,9 +116,48 @@ async function geminiCreate(params: LlmCreateParams): Promise<LlmResponse> {
   return { content: [{ type: "text", text: resp.text ?? "" }] };
 }
 
-/** Route a single text completion to the active provider. */
+/** Transient provider errors (rate limit / overload) worth retrying. */
+function isTransient(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes("503") ||
+    msg.includes("429") ||
+    msg.includes("500") ||
+    msg.includes("unavailable") ||
+    msg.includes("overloaded") ||
+    msg.includes("high demand") ||
+    msg.includes("rate limit") ||
+    msg.includes("resource_exhausted")
+  );
+}
+
+const MAX_ATTEMPTS = 5;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Route a single text completion to the active provider, retrying transient
+ * overload/rate-limit errors with exponential backoff (Gemini Flash 503s under
+ * load are common). Non-transient errors throw immediately.
+ */
 export async function createMessage(params: LlmCreateParams): Promise<LlmResponse> {
-  return activeProvider() === "gemini" ? geminiCreate(params) : claudeCreate(params);
+  const run = () =>
+    activeProvider() === "gemini" ? geminiCreate(params) : claudeCreate(params);
+
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await run();
+    } catch (err) {
+      lastErr = err;
+      if (attempt === MAX_ATTEMPTS || !isTransient(err)) throw err;
+      // 1.5s, 3s, 6s, 12s — give the provider room to recover.
+      await sleep(1500 * 2 ** (attempt - 1));
+    }
+  }
+  throw lastErr;
 }
 
 /**
