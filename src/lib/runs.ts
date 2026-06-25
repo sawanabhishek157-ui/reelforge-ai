@@ -270,6 +270,7 @@ async function runImages(run: ContentRun): Promise<ContentRun> {
         : {}),
       ...(sbScene.windMood ? { windMood: sbScene.windMood } : {}),
       ...(asset.subjectMaskUrl != null ? { subjectMaskUrl: asset.subjectMaskUrl } : {}),
+      ...(asset.backgroundUrl != null ? { backgroundUrl: asset.backgroundUrl } : {}),
       ...(asset.cinemagraph != null
         ? {
             cinemagraph: {

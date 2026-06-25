@@ -10,10 +10,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { generateImage } from "./segmind";
+import { generateImage, inpaintBackground } from "./segmind";
 import { generateDepthMap, depthMapPathFor } from "./depth";
 import { segmentRegion, maskPathFor } from "./segment";
 import { generateSubjectMask, subjectMaskPathFor } from "./matte";
+import { generateCleanBackground, backgroundPathFor } from "./inpaint";
 import { PUBLIC_DIR, toPublicUrl } from "./paths";
 
 import type { Storyboard } from "./types";
@@ -33,6 +34,9 @@ export interface SceneAsset {
   cinemagraph?: CinemagraphAsset;
   /** White-on-black subject mask — enables the depth-layered compositor. */
   subjectMaskUrl?: string;
+  /** Subject-free background plane (inpaint) — lets the subject parallax hard
+   *  without a ghost hole. Only set when a subject mask was produced. */
+  backgroundUrl?: string;
 }
 
 export interface GenerateSceneAssetsOptions {
@@ -175,6 +179,7 @@ export async function generateSceneAssets(
     // Non-fatal: if it fails or finds no subject, the scene renders flat.
     // ------------------------------------------------------------------
     let subjectMaskUrl: string | undefined;
+    let subjectMaskAbs: string | undefined;
 
     try {
       const subjectAbs = subjectMaskPathFor(imageAbs);
@@ -182,11 +187,50 @@ export async function generateSceneAssets(
       const result = await generateSubjectMask(imageAbs, subjectAbs, depthAbs);
       if (result.maskPath && result.coverage >= MIN_SUBJECT_COVERAGE) {
         subjectMaskUrl = toPublicUrl(result.maskPath);
+        subjectMaskAbs = result.maskPath;
       }
     } catch (err) {
       console.warn(
         `Scene ${i}: subject matting skipped — ${err instanceof Error ? err.message : String(err)}`,
       );
+    }
+
+    // ------------------------------------------------------------------
+    // Step 5: Subject-free background (optional) — kills the ghost hole so the
+    // subject plane can parallax hard. Only when a subject mask exists.
+    // Non-fatal: on failure the compositor falls back to the full image.
+    // ------------------------------------------------------------------
+    let backgroundUrl: string | undefined;
+
+    if (subjectMaskAbs) {
+      const bgAbs = backgroundPathFor(imageAbs);
+      // Default: free local inpaint. Opt-in to paid Segmind FLUX Fill via
+      // BG_INPAINT=flux, with a local fallback if the paid call fails.
+      const useFlux = process.env.BG_INPAINT === "flux";
+      try {
+        if (useFlux) {
+          await inpaintBackground(imageAbs, subjectMaskAbs, bgAbs);
+        } else {
+          await generateCleanBackground(imageAbs, subjectMaskAbs, bgAbs);
+        }
+        backgroundUrl = toPublicUrl(bgAbs);
+      } catch (err) {
+        console.warn(
+          `Scene ${i}: ${useFlux ? "FLUX" : "local"} background inpaint failed${
+            useFlux ? " — falling back to local" : ""
+          } — ${err instanceof Error ? err.message : String(err)}`,
+        );
+        if (useFlux) {
+          try {
+            await generateCleanBackground(imageAbs, subjectMaskAbs, bgAbs);
+            backgroundUrl = toPublicUrl(bgAbs);
+          } catch (err2) {
+            console.warn(
+              `Scene ${i}: local background inpaint also failed — ${err2 instanceof Error ? err2.message : String(err2)}`,
+            );
+          }
+        }
+      }
     }
 
     // ------------------------------------------------------------------
@@ -197,6 +241,7 @@ export async function generateSceneAssets(
       depthMapUrl: toPublicUrl(depthAbs),
       ...(cinemagraph !== undefined ? { cinemagraph } : {}),
       ...(subjectMaskUrl !== undefined ? { subjectMaskUrl } : {}),
+      ...(backgroundUrl !== undefined ? { backgroundUrl } : {}),
     };
 
     assets.push(asset);
