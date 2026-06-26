@@ -76,6 +76,10 @@ export interface StoryboardScene {
   effects?: string[];
   /** Wind strength driving physics particles + subject sway + parallax. */
   windMood?: "calm" | "breeze" | "gust" | "swirl";
+  /** Physical secondary motion applied to the subject so it reads as alive:
+   *  pendulum (hanging object swings), float (hovering bob/drift),
+   *  breathe (figure slow scale pulse), sway (gentle lean), none. */
+  subjectMotion?: "pendulum" | "float" | "breathe" | "sway" | "none";
   durationSec: number;
 }
 

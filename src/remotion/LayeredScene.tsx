@@ -7,8 +7,6 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { noise2D } from "@remotion/noise";
-
 const WIND_AMP: Record<string, number> = { calm: 0.4, breeze: 1, gust: 1.9, swirl: 1.3 };
 
 import { KineticCaption, pickCaptionStyle } from "./KineticCaption";
@@ -48,7 +46,7 @@ export const LayeredScene: React.FC<{ scene: Scene; sceneIndex: number }> = ({
   sceneIndex,
 }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames, width, height } = useVideoConfig();
+  const { durationInFrames, width, height, fps } = useVideoConfig();
 
   const opacity = interpolate(
     frame,
@@ -60,37 +58,46 @@ export const LayeredScene: React.FC<{ scene: Scene; sceneIndex: number }> = ({
   const mood = MOOD_CYCLE[sceneIndex % MOOD_CYCLE.length];
   const captionStyle = scene.captionStyle ?? pickCaptionStyle(sceneIndex);
 
-  // The storyboard director picks the camera move per scene (motionStyle).
-  // Each depth layer then moves at its OWN rate — near layers move a lot, far
-  // layers barely — so the planes visibly slide against each other (real
-  // parallax), not a single Ken Burns zoom. Strong, eased, hole-safe (the
-  // foreground always zooms MORE than the background, so it covers, never reveals).
+  // The storyboard director picks the camera move per scene (motionStyle). Each
+  // depth layer moves at its OWN rate (parallax), but the camera is kept SLOW and
+  // deliberate — a gentle push — so the subject's own physical motion (below)
+  // leads the shot instead of an aggressive zoom that reads as a wobble.
   const style = scene.motionPreset ?? "zoomdrift";
   const dir = sceneIndex % 2 === 0 ? 1 : -1;
   const t = frame / Math.max(1, durationInFrames);
   const e = t * t * (3 - 2 * t); // smoothstep — accelerate then settle
 
+  // Each scene is EITHER subject-led or camera-led — never both at once, which is
+  // what made the background drift along with the swing. When the subject has its
+  // own physical motion (pendulum/float/breathe/sway), the camera is nearly locked
+  // so the BACKGROUND stays still and only the object moves (cinemagraph feel).
+  // Pure landscapes ("none") keep the full camera push + parallax.
+  const subjectLed = (scene.subjectMotion ?? "breathe") !== "none";
+  const camGain = subjectLed ? 0.16 : 1.0;
+
   // depth: 0 = far background … 1 = near foreground.
   const layer = (depth: number): React.CSSProperties => {
-    const zoom = 1.08 + (0.03 + depth * 0.26) * e; // bg ~+3%, foreground ~+29%
-    const amp = 0.2 + depth * 1.15; // near planes translate far more than far ones
+    // 1.025 base is a constant overscan (no motion); only the *extra* zoom and the
+    // translation are gated by camGain, so a locked camera leaves the plane still.
+    const zoom = 1.025 + (0.015 + depth * 0.12) * e * camGain;
+    const amp = (0.15 + depth * 0.7) * camGain; // gentle parallax differential
     let tx = 0;
     let ty = 0;
     let rot = 0;
     if (style === "orbit") {
-      tx = 70 * amp * e * dir;
-      rot = 1.5 * amp * e * dir;
+      tx = 38 * amp * e * dir;
+      rot = 0.9 * amp * e * dir;
     } else if (style === "vertical") {
-      ty = -68 * amp * e;
-      tx = 10 * amp * e * dir;
+      ty = -38 * amp * e;
+      tx = 6 * amp * e * dir;
     } else if (style === "dolly") {
-      // mostly a forward push — strong differential zoom, little drift
-      tx = 16 * amp * e * dir;
-      ty = -8 * amp * e;
+      // mostly a slow forward push — gentle differential zoom, little drift
+      tx = 9 * amp * e * dir;
+      ty = -5 * amp * e;
     } else {
-      // zoomdrift — push in while the planes slide diagonally
-      tx = 52 * amp * e * dir;
-      ty = -24 * amp * e;
+      // zoomdrift — gentle diagonal push
+      tx = 28 * amp * e * dir;
+      ty = -13 * amp * e;
     }
     return {
       transform: `translate(${tx}px, ${ty}px) scale(${zoom}) rotate(${rot}deg)`,
@@ -109,13 +116,43 @@ export const LayeredScene: React.FC<{ scene: Scene; sceneIndex: number }> = ({
 
   const imgStyle: React.CSSProperties = { width, height, objectFit: "cover" };
 
-  // Subject "alive" sway — the same wind field nudges/tilts the cut-out so it
-  // reads as moving in the wind. Rigid transform only (never a pixel warp → no morph).
+  // Subject "alive" motion — believable, physical secondary motion on the cut-out
+  // so the SUBJECT moves (a hanging pendant swings, a figure breathes), not just
+  // the camera. Pure function of frame (deterministic), rigid transform only (no
+  // pixel warp → never morphs). Applied on its OWN pivot, nested inside the camera
+  // plane below.
   const windK = WIND_AMP[scene.windMood ?? "breeze"];
-  const swayX = noise2D("sway-x", sceneIndex * 3.1, frame * 0.018) * 12 * windK;
-  const swayRot = noise2D("sway-rot", sceneIndex * 1.7, frame * 0.02) * 1.3 * windK;
-  const subjStyle = layer(0.85);
-  subjStyle.transform = `${subjStyle.transform} translateX(${swayX}px) rotate(${swayRot}deg)`;
+  const tSec = frame / Math.max(1, fps);
+  const TAU = Math.PI * 2;
+  const osc = (periodSec: number, phase = 0) => Math.sin(tSec * (TAU / periodSec) + phase);
+
+  const motion = scene.subjectMotion ?? "breathe";
+  let secTransform = "";
+  let secOrigin = "50% 50%";
+  if (motion === "pendulum") {
+    // Hangs from above: swing about a pivot at the top-centre of the frame.
+    secOrigin = "50% 0%";
+    const ang = 3.0 * windK * osc(2.6) + 0.7 * windK * osc(1.7, 1.0);
+    secTransform = `rotate(${ang}deg)`;
+  } else if (motion === "float") {
+    // Hovers: slow vertical bob + lateral drift + faint tumble.
+    const bob = 12 * windK * osc(3.2);
+    const drift = 7 * windK * osc(4.6, 0.7);
+    const rot = 1.4 * windK * osc(3.8);
+    secTransform = `translate(${drift}px, ${bob}px) rotate(${rot}deg)`;
+  } else if (motion === "sway") {
+    // Leans in the wind (foliage/fabric/hair): gentle tilt about the base.
+    secOrigin = "50% 100%";
+    const ang = 1.8 * windK * osc(3.0) + 0.5 * windK * osc(2.0, 0.6);
+    secTransform = `rotate(${ang}deg)`;
+  } else if (motion === "breathe") {
+    // A figure breathing: tiny slow scale pulse from the lower body + faint drift.
+    secOrigin = "50% 80%";
+    const s = 1 + 0.014 * windK * (0.5 + 0.5 * osc(4.2));
+    const drift = 3 * windK * osc(6.0);
+    secTransform = `translateX(${drift}px) scale(${s})`;
+  }
+  // "none" → no secondary motion (pure landscape/architecture).
 
   // Clean (subject-free) background plane when available — lets the subject
   // parallax hard with no ghost hole; falls back to the full image.
@@ -134,9 +171,19 @@ export const LayeredScene: React.FC<{ scene: Scene; sceneIndex: number }> = ({
         <EffectsLayer names={scene.effects} band="behind" sceneIndex={sceneIndex} palette={scene.palette} windMood={scene.windMood} />
       </AbsoluteFill>
 
-      {/* z2 — SUBJECT/foreground plane (masked; pushes toward camera + wind sway) */}
-      <AbsoluteFill style={{ ...maskStyle, ...subjStyle }}>
-        <Img src={toStatic(scene.imageUrl)} style={imgStyle} />
+      {/* z2 — SUBJECT/foreground plane: camera push (outer) + physical secondary
+          motion on its own pivot (inner) so the subject reads as alive. */}
+      <AbsoluteFill style={layer(0.85)}>
+        <AbsoluteFill
+          style={{
+            ...maskStyle,
+            transform: secTransform,
+            transformOrigin: secOrigin,
+            willChange: "transform",
+          }}
+        >
+          <Img src={toStatic(scene.imageUrl)} style={imgStyle} />
+        </AbsoluteFill>
       </AbsoluteFill>
 
       {/* z3 — FRONT band: leaves / embers / lightning, nearest — moves most */}

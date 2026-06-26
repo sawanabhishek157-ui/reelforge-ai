@@ -109,6 +109,13 @@ Rules:
 - effects: array of 1-2 cinematic VFX that suit the scene's mood (they composite with real depth — some sit BEHIND the subject, some IN FRONT). Add motion to EVERY scene — every scene should have something moving (stars, air, particles, light, an object). Choose ONLY from the "Allowed effects for THIS brand" list provided in the context below. Effect vocabulary by family: weather (rain, snow, fog, clouds), magic (sparkles, fireflies, bokeh, magicDust), cosmic (nebula, shootingStars, aurora, starburst, godRays), elements (lightning, leaves, embers), tech (gridLines, dataStream, glitch, neonGlow), objects (citySkyline, confetti, rocket). Pick 1-2 per scene and VARY them across scenes so the reel feels alive and never repetitive.
 - durationSec: integer 2-4 (scene 0 the hook: 2-3). Keep scenes SHORT for a fast pace. The sum of all scene durations should approximate the total spoken duration.
 - windMood: one of "calm" | "breeze" | "gust" | "swirl" — the air/energy of the scene. It drives REAL physics: particle motion (leaves/embers blowing), the subject swaying in the wind, and parallax strength. Pick to match the beat (calm = still/intimate, breeze = gentle, gust = dramatic/powerful, swirl = chaotic/cosmic). Vary across scenes.
+- subjectMotion: how the MAIN subject physically moves so it reads as ALIVE (not just the camera). Choose by what the foreground subject IS:
+    "pendulum" — a HANGING / suspended object (pendant, locket, key on a chain, charm, lantern). It swings gently from a top pivot. Use whenever the hero element dangles.
+    "float"    — an object that HOVERS or drifts in space (crystal, orb, floating card, feather). Slow bob + drift.
+    "breathe"  — a PERSON / figure / face. A subtle, slow scale pulse like breathing. Use for any human subject.
+    "sway"     — foliage, fabric, robes, hair, grass — anything that leans in the wind.
+    "none"     — pure landscape / architecture with no clear movable subject.
+  CRITICAL for "pendulum" and "float": compose the imagePrompt so the hero is a CLEAN STANDALONE object that is NOT held by hands and NOT attached to a person — e.g. "a glowing pendant suspended ALONE on a fine chain", "a crystal floating in mid-air". The whole object moves as one, so a hand holding it would look wrong. Put the object clearly in the foreground with the scene receding behind it. For "breathe"/"sway" the subject is a person/foliage and that is fine. Pick the motion that fits each scene.
 - musicMood: a single mood id from the allowed list that best fits the overall idea and emotional arc.
 - voiceId: the voice id to use for narration.
 
@@ -124,6 +131,7 @@ Output ONLY valid JSON. No prose, no markdown, no code fences. Exact schema:
       "motionGraphics": string[],
       "effects": string[],
       "windMood": "calm" | "breeze" | "gust" | "swirl",
+      "subjectMotion": "pendulum" | "float" | "breathe" | "sway" | "none",
       "durationSec": number
     }
   ],
@@ -264,7 +272,12 @@ function validateScene(
     ? (s.windMood as StoryboardScene["windMood"])
     : "breeze";
 
-  return { caption, imagePrompt, motionStyle, cinemagraph, motionGraphics, effects, windMood, durationSec };
+  const MOTIONS = ["pendulum", "float", "breathe", "sway", "none"] as const;
+  const subjectMotion = MOTIONS.includes(s.subjectMotion as (typeof MOTIONS)[number])
+    ? (s.subjectMotion as StoryboardScene["subjectMotion"])
+    : "breathe"; // safe gentle default
+
+  return { caption, imagePrompt, motionStyle, cinemagraph, motionGraphics, effects, windMood, subjectMotion, durationSec };
 }
 
 function validateStoryboard(

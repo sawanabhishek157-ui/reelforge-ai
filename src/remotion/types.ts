@@ -28,6 +28,8 @@ export type Scene = {
   palette?: string[];
   /** Wind strength driving physics particles + subject sway + parallax. */
   windMood?: "calm" | "breeze" | "gust" | "swirl";
+  /** Physical secondary motion on the subject plane (pendulum/float/breathe/sway). */
+  subjectMotion?: "pendulum" | "float" | "breathe" | "sway" | "none";
   /** White-on-black mask of the foreground subject. When set, the scene renders
    *  through LayeredScene with the subject on its own plane (effects behind it). */
   subjectMaskUrl?: string;
