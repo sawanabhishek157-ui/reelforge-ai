@@ -72,8 +72,11 @@ export const LayeredScene: React.FC<{ scene: Scene; sceneIndex: number }> = ({
   // own physical motion (pendulum/float/breathe/sway), the camera is nearly locked
   // so the BACKGROUND stays still and only the object moves (cinemagraph feel).
   // Pure landscapes ("none") keep the full camera push + parallax.
+  // Subject-led scenes LOCK the camera (camGain 0) so the background is perfectly
+  // still and ONLY the subject cutout moves — a true cinemagraph. Landscapes
+  // ("none") get the full camera push + parallax.
   const subjectLed = (scene.subjectMotion ?? "breathe") !== "none";
-  const camGain = subjectLed ? 0.16 : 1.0;
+  const camGain = subjectLed ? 0 : 1.0;
 
   // depth: 0 = far background … 1 = near foreground.
   const layer = (depth: number): React.CSSProperties => {

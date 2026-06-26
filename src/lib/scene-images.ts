@@ -51,8 +51,9 @@ export interface GenerateSceneAssetsOptions {
 /** Minimum coverage fraction below which we omit the cinemagraph asset. */
 const MIN_CINEMAGRAPH_COVERAGE = 0.12;
 
-/** Minimum subject coverage below which we skip the depth-layered subject plane. */
-const MIN_SUBJECT_COVERAGE = 0.04;
+/** Minimum subject coverage below which we skip the depth-layered subject plane.
+ *  Low enough to keep tight object cutouts (a pendant is ~2-3% of the frame). */
+const MIN_SUBJECT_COVERAGE = 0.006;
 
 /**
  * Round a dimension up to the nearest multiple of 64 (Segmind / FLUX
@@ -183,8 +184,10 @@ export async function generateSceneAssets(
 
     try {
       const subjectAbs = subjectMaskPathFor(imageAbs);
-      // Pass the depth map so no-person scenes fall back to a depth foreground split.
-      const result = await generateSubjectMask(imageAbs, subjectAbs, depthAbs);
+      // Moving subjects get a TIGHT BiRefNet cutout (only the subject moves over a
+      // still background); landscapes ("none"/unset) use the depth-split fallback.
+      const moving = scene.subjectMotion !== undefined && scene.subjectMotion !== "none";
+      const result = await generateSubjectMask(imageAbs, subjectAbs, depthAbs, { tight: moving });
       if (result.maskPath && result.coverage >= MIN_SUBJECT_COVERAGE) {
         subjectMaskUrl = toPublicUrl(result.maskPath);
         subjectMaskAbs = result.maskPath;

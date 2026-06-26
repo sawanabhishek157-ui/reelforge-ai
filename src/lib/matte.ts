@@ -15,10 +15,18 @@ import path from "node:path";
 
 const MODEL = process.env.MATTE_MODEL ?? "Xenova/segformer-b0-finetuned-ade-512-512";
 
+// Primary matte: BiRefNet (MIT-licensed, commercial-safe) via the transformers.js
+// background-removal pipeline — a TIGHT alpha cutout of the salient subject. This
+// is what lets a moving subject (a swinging pendant) be composited over a STILL
+// background with no sky/clouds dragged along. Falls back to SegFormer + depth.
+const BG_MODEL = process.env.MATTE_BG_MODEL ?? "onnx-community/BiRefNet_lite";
+
 // ADE20k labels that count as the foreground subject.
 const SUBJECT_CLASSES = new Set(["person"]);
 const FEATHER_RADIUS = 3; // px box-blur passes to soften the mask edge
 const MIN_PERSON_COVERAGE = 0.04; // below this, fall back to depth-foreground split
+// Tight object cutouts can be small (a pendant ~2-3% of frame); accept down to this.
+const MIN_OBJECT_COVERAGE = 0.006;
 const DEPTH_NEAR_PERCENTILE = 0.55; // keep the nearest ~45% of pixels as foreground
 
 export interface MatteResult {
@@ -87,9 +95,59 @@ function feather(src: Uint8Array, width: number, height: number, radius: number)
   return buf;
 }
 
+// Lazy singleton — the background-removal model is heavy to construct.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _remover: any = null;
+async function getRemover() {
+  if (!_remover) {
+    const { pipeline } = await import("@huggingface/transformers");
+    _remover = await pipeline("background-removal", BG_MODEL);
+  }
+  return _remover;
+}
+
+/**
+ * Tight alpha cutout of the salient subject via BiRefNet. Writes a feathered
+ * white-on-black mask (white = subject). This is the "transparent cutout" that
+ * lets the subject move while the background stays perfectly still.
+ */
+async function birefnetMask(
+  imageAbsPath: string,
+  outMaskAbsPath: string,
+): Promise<MatteResult> {
+  const { RawImage } = await import("@huggingface/transformers");
+  const remover = await getRemover();
+  const out = await remover(imageAbsPath);
+  const r = (Array.isArray(out) ? out[0] : out) as {
+    width: number;
+    height: number;
+    channels: number;
+    data: Uint8Array | Uint8ClampedArray;
+  };
+
+  const n = r.width * r.height;
+  const alpha = new Uint8Array(n);
+  let white = 0;
+  for (let i = 0; i < n; i++) {
+    const a = r.data[i * r.channels + (r.channels - 1)]; // alpha = foreground
+    alpha[i] = a;
+    if (a > 127) white++;
+  }
+
+  const feathered = feather(alpha, r.width, r.height, FEATHER_RADIUS);
+  const mask = new RawImage(feathered, r.width, r.height, 1);
+  fs.mkdirSync(path.dirname(outMaskAbsPath), { recursive: true });
+  await mask.save(outMaskAbsPath);
+  return { maskPath: outMaskAbsPath, coverage: white / n };
+}
+
 /**
  * Segment the foreground subject and write a feathered mask. Returns coverage so
- * callers can skip the subject plane when there's no clear subject (e.g. < 0.04).
+ * callers can skip the subject plane when there's no clear subject.
+ *
+ * For scenes with a moving subject (`tight`), produce a TIGHT BiRefNet cutout so
+ * only the subject moves and the background stays still. Otherwise (landscapes)
+ * use the SegFormer person mask → depth-foreground split for camera parallax.
  */
 export async function generateSubjectMask(
   imageAbsPath: string,
@@ -97,11 +155,26 @@ export async function generateSubjectMask(
   /** When no clear person is found, fall back to a depth-based foreground split
    *  from this depth map so landscape/no-subject scenes still get a layered plane. */
   depthMapPath?: string,
+  opts: { tight?: boolean } = {},
 ): Promise<MatteResult> {
   // Cache: skip if mask is newer than source.
   if (fs.existsSync(outMaskAbsPath) && fs.existsSync(imageAbsPath)) {
     if (fs.statSync(outMaskAbsPath).mtimeMs >= fs.statSync(imageAbsPath).mtimeMs) {
       return { maskPath: outMaskAbsPath, coverage: 1 };
+    }
+  }
+
+  // Preferred path for moving subjects: a tight BiRefNet alpha cutout.
+  if (opts.tight) {
+    try {
+      const res = await birefnetMask(imageAbsPath, outMaskAbsPath);
+      if (res.maskPath && res.coverage >= MIN_OBJECT_COVERAGE && res.coverage <= 0.9) {
+        return res;
+      }
+    } catch (err) {
+      console.warn(
+        `matte: BiRefNet cutout failed, falling back to SegFormer/depth — ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
