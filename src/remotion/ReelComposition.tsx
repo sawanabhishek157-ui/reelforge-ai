@@ -25,7 +25,7 @@ import { Vignette } from "./overlays/Vignette";
 import type { Motion, Plan, Scene } from "./types";
 
 const FPS = 30;
-const OUTRO_SEC = 3.5;
+const OUTRO_SEC = 5.0;
 
 // Moods cycled per scene index for visual variety
 const MOOD_CYCLE = [

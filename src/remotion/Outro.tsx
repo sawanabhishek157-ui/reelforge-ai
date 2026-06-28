@@ -35,11 +35,13 @@ export const Outro: React.FC<OutroProps> = ({ brandName, palette, tagline }) => 
   // Background lives: slow push-in.
   const bgScale = interpolate(frame, [0, durationInFrames], [1.0, 1.14], { extrapolateRight: "clamp" });
 
-  // Wordmark: rises on a spring, slowly tilts in 3D, shine sweeps across.
-  const lift = spring({ frame, fps, config: { damping: 200 } });
+  // Wordmark: rises on a spring that SETTLES fast (~1.2s) then holds dead-still —
+  // the old damping:200 spring kept creeping the scale up for the whole outro,
+  // which read as a continuous downward drift.
+  const lift = spring({ frame, fps, config: { damping: 30, stiffness: 120, mass: 0.8 } });
   const wordScale = interpolate(lift, [0, 1], [0.82, 1]);
-  const tiltY = Math.sin(frame * 0.035) * 9;
-  const tiltX = Math.cos(frame * 0.028) * 3;
+  const tiltY = Math.sin(frame * 0.03) * 5;
+  const tiltX = Math.cos(frame * 0.024) * 2;
   const glowPulse = 20 + 14 * Math.sin(frame * 0.12); // breathing glow
 
   // Metallic gold ramp (reliable — no background-clip, which breaks under 3D).
@@ -72,7 +74,7 @@ export const Outro: React.FC<OutroProps> = ({ brandName, palette, tagline }) => 
           }}
         >
           {letters.map((ch, i) => {
-            const ls = spring({ frame: frame - i * 3, fps, config: { damping: 14, stiffness: 120, mass: 0.6 } });
+            const ls = spring({ frame: frame - i * 2, fps, config: { damping: 16, stiffness: 150, mass: 0.5 } });
             const rx = interpolate(ls, [0, 1], [-38, 0]); // subtle tip-up, never edge-on
             const ty = interpolate(ls, [0, 1], [80, 0]);
             const sc = interpolate(ls, [0, 1], [0.4, 1]);
