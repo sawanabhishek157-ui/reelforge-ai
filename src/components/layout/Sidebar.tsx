@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  Clapperboard,
   Film,
   Folder,
   Home,
@@ -11,6 +12,7 @@ import {
   Layers,
   Map,
   Mic,
+  Package,
   Plus,
   Rocket,
   Settings,
@@ -22,6 +24,8 @@ import { cn } from "@/lib/cn";
 
 const NAV = [
   { label: "Dashboard", href: "/", icon: Home },
+  { label: "Studio Products", href: "/studio-products", icon: Package },
+  { label: "Studio", href: "/studio", icon: Clapperboard },
   { label: "Create Video — V0", href: "/create-v0", icon: Rocket },
   { label: "Create Video", href: "/create", icon: Plus },
   { label: "Image → Video", href: "/image-to-video", icon: Film },

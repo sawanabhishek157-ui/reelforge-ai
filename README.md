@@ -77,3 +77,17 @@ The implementation roadmap lives in **`AI-Reel-Studio-Local.pdf`**:
 4. Optional: add Auth (NextAuth or Supabase Auth) once multi-user is needed
 
 For now, all data is hard-coded in `src/lib/data.ts` — easy to swap with real API calls later.
+
+## Codegraph (code navigation)
+
+This repo is registered in the local codegraph workspace, so the `mcp__codegraph__*`
+tools (find_symbol, callers, blast_radius, semantic_search) work against it. Config
+lives in `.codegraph.yml` (committed); the graph DB in `.codegraph/` is gitignored.
+
+Re-index after significant changes:
+
+```bash
+CG=/Users/smochan/Documents/projects/codegraph/.venv/bin/codegraph
+$CG build          # rebuild the graph (incremental by default)
+$CG status         # check graph freshness / drift
+```

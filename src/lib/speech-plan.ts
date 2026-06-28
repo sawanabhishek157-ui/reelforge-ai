@@ -9,13 +9,7 @@
  *   - OpenAI gpt-4o-mini-tts → free-text `instructions` parameter
  */
 
-import Anthropic from "@anthropic-ai/sdk";
-
-let _client: Anthropic | null = null;
-function client() {
-  if (!_client) _client = new Anthropic();
-  return _client;
-}
+import { llm } from "./llm";
 
 export type Emotion =
   | "neutral"
@@ -86,7 +80,7 @@ Schema:
 }`;
 
 export async function generateSpeechPlan(script: string): Promise<SpeechPlan> {
-  const resp = await client().messages.create({
+  const resp = await llm().messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 2000,
     system: SYSTEM,
@@ -129,7 +123,7 @@ export async function revisePlanWithFeedback(
   current: SpeechPlan,
   feedback: string,
 ): Promise<SpeechPlan> {
-  const resp = await client().messages.create({
+  const resp = await llm().messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 2000,
     system:

@@ -55,3 +55,21 @@ next-env.d.ts
 
 # User-supplied music — README stays, MP3s don't
 # /public/music/*.mp3   (placeholders are committed; replace freely)
+
+.codegraph/
+.claude/
+/data/
+/public/voice-ab/
+/public/voice-ab-demo/
+/public/seg-test/
+/public/cine-demo/
+/public/runs/
+
+# Local TTS microservice — 9GB venv + Python caches stay local (rebuild via uv sync)
+/scripts/tts-service/.venv/
+**/__pycache__/
+*.pyc
+
+# Test render scratch (large mp4s, regenerated on demand)
+/public/effects-test/
+/public/depth-test/
